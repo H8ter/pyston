@@ -110,7 +110,7 @@ add_library(PYSTON_OBJECTS OBJECT ${OPTIONAL_SRCS}
 		runtime/tuple.cpp
 		runtime/types.cpp
 		runtime/util.cpp
-		)
+		gc/marksweep.cpp gc/marksweep.h gc/gc_base.cpp gc/gc_base.h gc/semispace.cpp gc/semispace.h gc/semispace_heap.cpp gc/semispace_heap.h gc/default_heap.cpp gc/default_heap.h)
 
 add_dependencies(PYSTON_OBJECTS copy_stdlib libunwind_patched libunwind pypa ${LLVM_LIBS})
 

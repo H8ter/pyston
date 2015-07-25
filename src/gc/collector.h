@@ -19,6 +19,7 @@
 #include <list>
 #include <vector>
 
+#include <gc/gc_base.h>
 #include "core/types.h"
 
 namespace pyston {
@@ -32,8 +33,8 @@ extern FILE* trace_fp;
 #define GC_TRACE_LOG(...)
 #endif
 
-extern std::deque<Box*> pending_finalization_list;
-extern std::deque<PyWeakReference*> weakrefs_needing_callback_list;
+std::deque<Box*>& pending_finalization_list();
+std::deque<PyWeakReference*>& weakrefs_needing_callback_list();
 
 // Mark this gc-allocated object as being a root, even if there are no visible references to it.
 // (Note: this marks the gc allocation itself, not the pointer that points to one.  For that, use
@@ -48,20 +49,6 @@ void deregisterPermanentRoot(void* root_obj);
 void registerNonheapRootObject(void* obj, int size);
 
 void registerPotentialRootRange(void* start, void* end);
-
-// If you want to have a static root "location" where multiple values could be stored, use this:
-class GCRootHandle {
-public:
-    Box* value;
-
-    GCRootHandle();
-    ~GCRootHandle();
-
-    void operator=(Box* b) { value = b; }
-
-    operator Box*() { return value; }
-    Box* operator->() { return value; }
-};
 
 void callPendingDestructionLogic();
 void runCollection();

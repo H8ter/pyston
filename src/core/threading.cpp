@@ -35,6 +35,18 @@
 namespace pyston {
 namespace threading {
 
+    void helper() {
+        // We need to call the finalizers on dead objects at some point. This is a safe place to do so.
+        // This needs to be done before checking for other threads waiting on the GIL since there could
+        // be only one thread doing a lot of work. Similarly for weakref callbacks.
+        //
+        // The conditional is an optimization - the function will do nothing if the lists are empty,
+        // but it's worth checking for to avoid the overhead of making a function call.
+        if (!gc::pending_finalization_list().empty() || !gc::weakrefs_needing_callback_list().empty()) {
+            gc::callPendingDestructionLogic();
+        }
+    }
+
 extern "C" {
 __thread PyThreadState cur_thread_state
     = { 0, NULL, NULL, NULL, NULL }; // not sure if we need to explicitly request zero-initialization

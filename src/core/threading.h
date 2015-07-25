@@ -23,7 +23,7 @@
 
 #include "core/common.h"
 #include "core/thread_utils.h"
-#include "gc/collector.h"
+//#include "gc/collector.h"
 
 namespace pyston {
 class Box;
@@ -96,6 +96,9 @@ void _allowGLReadPreemption();
 extern int gil_check_count;
 extern std::atomic<int> threads_waiting_on_gil;
 extern "C" inline void allowGLReadPreemption() __attribute__((visibility("default")));
+
+        void helper();
+
 extern "C" inline void allowGLReadPreemption() {
 #if ENABLE_SAMPLING_PROFILER
     if (unlikely(sigprof_pending)) {
@@ -109,15 +112,7 @@ extern "C" inline void allowGLReadPreemption() {
     }
 #endif
 
-    // We need to call the finalizers on dead objects at some point. This is a safe place to do so.
-    // This needs to be done before checking for other threads waiting on the GIL since there could
-    // be only one thread doing a lot of work. Similarly for weakref callbacks.
-    //
-    // The conditional is an optimization - the function will do nothing if the lists are empty,
-    // but it's worth checking for to avoid the overhead of making a function call.
-    if (!gc::pending_finalization_list.empty() || !gc::weakrefs_needing_callback_list.empty()) {
-        gc::callPendingDestructionLogic();
-    }
+    helper();
 
     // Double-checked locking: first read with no ordering constraint:
     if (!threads_waiting_on_gil.load(std::memory_order_relaxed))
