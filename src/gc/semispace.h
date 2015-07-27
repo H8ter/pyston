@@ -15,7 +15,9 @@ namespace gc {
     public:
         SemiSpaceGC();
 
-        virtual ~SemiSpaceGC() {}
+        virtual ~SemiSpaceGC() {
+            delete global_heap;
+        }
 
         virtual void runCollection() override;
 

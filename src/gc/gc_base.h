@@ -125,7 +125,12 @@ namespace pyston {
 
         void prepareWeakrefCallbacks(Box* box);
 
-    //protected:
+        void orderFinalizers();
+
+        void finalizationOrderingFindReachable(Box* obj);
+
+        void finalizationOrderingRemoveTemporaries(Box* obj);
+
         bool gc_enabled;
 
         __attribute__((always_inline)) void visitByGCKind(void* p, GCVisitor& visitor);

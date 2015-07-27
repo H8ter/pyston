@@ -87,7 +87,7 @@ namespace pyston {
 
         class SmallArena : public Arena<ARENA_SIZE, 64 * 1024 * 1024, 16 * 1024 * 1024> {
         public:
-            SmallArena(DefaultHeap* heap) : Arena(SMALL_ARENA_START), heap(heap), thread_caches(heap, this) {
+            SmallArena(Heap* heap) : Arena(SMALL_ARENA_START), heap(heap), thread_caches(heap, this) {
 #ifndef NDEBUG
                 // Various things will crash if we instantiate multiple Heaps/Arenas
                 static bool already_created = false;
@@ -226,12 +226,12 @@ namespace pyston {
 
         private:
             struct ThreadBlockCache {
-                DefaultHeap* heap;
+                Heap* heap;
                 SmallArena* small;
                 Block* cache_free_heads[NUM_BUCKETS];
                 Block* cache_full_heads[NUM_BUCKETS];
 
-                ThreadBlockCache(DefaultHeap* heap, SmallArena* small) : heap(heap), small(small) {
+                ThreadBlockCache(Heap* heap, SmallArena* small) : heap(heap), small(small) {
                     memset(cache_free_heads, 0, sizeof(cache_free_heads));
                     memset(cache_full_heads, 0, sizeof(cache_full_heads));
                 }
@@ -244,9 +244,9 @@ namespace pyston {
 
             friend struct ThreadBlockCache;
 
-            DefaultHeap* heap;
+            Heap* heap;
             // TODO only use thread caches if we're in GRWL mode?
-            threading::PerThreadSet<ThreadBlockCache, DefaultHeap*, SmallArena*> thread_caches;
+            threading::PerThreadSet<ThreadBlockCache, Heap*, SmallArena*> thread_caches;
 
             Block* _allocBlock(uint64_t size, Block** prev);
             GCAllocation* _allocFromBlock(Block* b);
@@ -312,7 +312,7 @@ namespace pyston {
             static constexpr int NUM_FREE_LISTS = 32;
 
             std::vector<ObjLookupCache> lookup; // used during gc's to speed up finding large object GCAllocations
-            DefaultHeap* heap;
+            Heap* heap;
             LargeObj* head;
             LargeBlock* blocks;
             LargeFreeChunk* free_lists[NUM_FREE_LISTS]; /* 0 is for larger sizes */
@@ -323,7 +323,7 @@ namespace pyston {
             void _freeLargeObj(LargeObj* obj);
 
         public:
-            LargeArena(DefaultHeap* heap) : Arena(LARGE_ARENA_START), heap(heap), head(NULL), blocks(NULL) {}
+            LargeArena(Heap* heap) : Arena(LARGE_ARENA_START), heap(heap), head(NULL), blocks(NULL) {}
 
             /* Largest object that can be allocated in a large block. */
             static constexpr size_t ALLOC_SIZE_LIMIT = BLOCK_SIZE - CHUNK_SIZE - sizeof(LargeObj);
@@ -347,7 +347,7 @@ namespace pyston {
 // linked list.  They are not reused.
         class HugeArena : public Arena<ARENA_SIZE, 0, PAGE_SIZE> {
         public:
-            HugeArena(DefaultHeap* heap) : Arena(HUGE_ARENA_START), heap(heap) {}
+            HugeArena(Heap* heap) : Arena(HUGE_ARENA_START), heap(heap) {}
 
             GCAllocation* __attribute__((__malloc__)) alloc(size_t bytes);
             GCAllocation* realloc(GCAllocation* alloc, size_t bytes);
@@ -387,7 +387,7 @@ namespace pyston {
             HugeObj* head;
             std::vector<ObjLookupCache> lookup; // used during gc's to speed up finding large object GCAllocations
 
-            DefaultHeap* heap;
+            Heap* heap;
         };
 
 

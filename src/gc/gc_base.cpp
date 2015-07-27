@@ -17,6 +17,7 @@
 
 namespace pyston {
     namespace gc {
+
         bool GCBase::gcIsEnabled() {
             return gc_enabled;
         }
@@ -241,6 +242,8 @@ namespace pyston {
             // but that chunk needs to be released after use to avoid a memory leak.
             release_chunk(start);
         }
+
+
     }
 
     void *gc::GCBase::gc_alloc(size_t bytes, gc::GCKind kind_id) {
@@ -388,6 +391,77 @@ namespace pyston {
             }
         }
 
+    }
+
+    void gc::GCBase::orderFinalizers() {
+        static StatCounter sc_us("us_gc_finalization_ordering");
+        Timer _t("finalizationOrdering", /*min_usec=*/10000);
+
+        std::vector<Box*> finalizer_marked;
+
+        for (Box* obj : objects_with_ordered_finalizers) {
+            GCAllocation* al = GCAllocation::fromUserData(obj);
+
+            // We are only interested in object with finalizers that need to be garbage-collected.
+            if (orderingState(al) == FinalizationState::UNREACHABLE) {
+                assert(hasOrderedFinalizer(obj->cls));
+
+                finalizer_marked.push_back(obj);
+                finalizationOrderingFindReachable(obj);
+                finalizationOrderingRemoveTemporaries(obj);
+            }
+        }
+
+        for (Box* marked : finalizer_marked) {
+            GCAllocation* al = GCAllocation::fromUserData(marked);
+
+            FinalizationState state = orderingState(al);
+            assert(state == FinalizationState::REACHABLE_FROM_FINALIZER || state == FinalizationState::ALIVE);
+
+            if (state == FinalizationState::REACHABLE_FROM_FINALIZER) {
+                pending_finalization_list.push_back(marked);
+            }
+        }
+
+        long us = _t.end();
+        sc_us.log(us);
+    }
+
+    void gc::GCBase::finalizationOrderingFindReachable(Box *obj) {
+        static StatCounter sc_marked_objs("gc_marked_object_count_finalizer_ordering");
+        static StatCounter sc_us("us_gc_mark_finalizer_ordering_1");
+        Timer _t("finalizationOrderingFindReachable", /*min_usec=*/10000);
+
+        TraceStack stack(TraceStackType::FinalizationOrderingFindReachable);
+        GCVisitor visitor(&stack, global_heap);
+
+        stack.push(obj);
+        while (void* p = stack.pop()) {
+            sc_marked_objs.log();
+
+            visitByGCKind(p, visitor);
+        }
+
+        long us = _t.end();
+        sc_us.log(us);
+    }
+
+    void gc::GCBase::finalizationOrderingRemoveTemporaries(Box *obj) {
+        static StatCounter sc_us("us_gc_mark_finalizer_ordering_2");
+        Timer _t("finalizationOrderingRemoveTemporaries", /*min_usec=*/10000);
+
+        TraceStack stack(TraceStackType::FinalizationOrderingRemoveTemporaries);
+        GCVisitor visitor(&stack, global_heap);
+
+        stack.push(obj);
+        while (void* p = stack.pop()) {
+            GCAllocation* al = GCAllocation::fromUserData(p);
+            assert(orderingState(al) != FinalizationState::UNREACHABLE);
+            visitByGCKind(p, visitor);
+        }
+
+        long us = _t.end();
+        sc_us.log(us);
     }
 }
 

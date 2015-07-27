@@ -29,12 +29,6 @@ namespace gc{
         void markPhase();
 
         void sweepPhase(std::vector<Box*>& weakly_referenced);
-
-        void orderFinalizers();
-
-        void finalizationOrderingFindReachable(Box* obj);
-
-        void finalizationOrderingRemoveTemporaries(Box* obj);
     };
 }
 }
