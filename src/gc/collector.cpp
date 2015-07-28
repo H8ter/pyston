@@ -52,8 +52,8 @@ FILE* trace_fp;
 // Track the highest-addressed nonheap root; the assumption is that the nonheap roots will
 // typically all have lower addresses than the heap roots, so this can serve as a cheap
 // way to verify it's not a nonheap root (the full check requires a hashtable lookup).
-static void* max_nonheap_root = 0;
-static void* min_nonheap_root = (void*)~0;
+//static void* max_nonheap_root = 0;
+//static void* min_nonheap_root = (void*)~0;
 
 
 

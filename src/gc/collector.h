@@ -33,6 +33,9 @@ extern FILE* trace_fp;
 #define GC_TRACE_LOG(...)
 #endif
 
+        static void* max_nonheap_root = 0;
+        static void* min_nonheap_root = (void*)~0;
+
 std::deque<Box*>& pending_finalization_list();
 std::deque<PyWeakReference*>& weakrefs_needing_callback_list();
 

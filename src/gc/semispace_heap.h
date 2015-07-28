@@ -8,6 +8,9 @@
 
 
 #include "heap.h"
+#include <algorithm>
+#include <vector>
+#include <set>
 
 namespace pyston {
 namespace gc {
@@ -29,13 +32,18 @@ namespace gc {
                 Obj* forward;
                 GCAllocation data[0];
 
-                Obj() { forward = nullptr; }
+                Obj() {
+                    forward = nullptr;
+                }
 
                 static Obj* fromAllocation(GCAllocation* alloc) {
                     char* rtn = (char*)alloc - offsetof(Obj, data);
                     return reinterpret_cast<Obj*>(rtn);
                 }
             };
+
+            std::vector<void*> obj;
+            std::set<void*> obj_set;
 
         public:
             friend class SemiSpaceGC;

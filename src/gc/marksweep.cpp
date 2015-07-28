@@ -9,10 +9,13 @@
 #include "gc/heap.h"
 #include "gc/default_heap.h"
 
+#include "gc/semispace_heap.h"
+
 namespace pyston{
     namespace gc {
         MarkSweepGC::MarkSweepGC() {
-            global_heap = new DefaultHeap();
+            //global_heap = new DefaultHeap();
+            global_heap = new SemiSpaceHeap();
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;

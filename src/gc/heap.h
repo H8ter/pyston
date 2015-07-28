@@ -193,6 +193,9 @@ public:
 
         void* rtn = cur;
         cur = (uint8_t*)cur + size;
+        if ((intptr_t)cur % 8 != 0)
+            cur = (uint8_t*)cur + 8 - ((intptr_t)cur % 8);
+
         return rtn;
     }
 
