@@ -34,7 +34,9 @@ namespace gc{
 //              return addr
 
         SemiSpaceGC::SemiSpaceGC() {
-            global_heap = new SemiSpaceHeap();
+            tospace = new SemiSpaceHeap(LARGE_ARENA_START);
+            fromspace = new SemiSpaceHeap(SMALL_ARENA_START);
+
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;
@@ -44,7 +46,7 @@ namespace gc{
             RELEASE_ASSERT(!should_not_reenter_gc, "");
             should_not_reenter_gc = true; // begin non-reentrant section
 
-            global_heap->prepareForCollection();
+            tospace->prepareForCollection();
 
 //            invalidateOrderedFinalizerList();
 //
@@ -58,19 +60,52 @@ namespace gc{
 //                global_heap->free(GCAllocation::fromUserData(o));
 //            }
 
+
+
             should_not_reenter_gc = false; // end non-reentrant section
 
-            global_heap->cleanupAfterCollection();
+            // forgetting about garbage
+            fromspace->obj.clear();
+            fromspace->obj_set.clear();
         }
 
         void SemiSpaceGC::flip() {
-            auto heap = (SemiSpaceHeap*)global_heap;
+            std::swap(tospace, fromspace);
 
-            std::swap(heap->tospace, heap->fromspace);
+            TraceStack stack(TraceStackType::MarkPhase, roots);
+            GCVisitor visitor(&stack, fromspace);
 
+            markRoots(visitor);
 
+            // 1st step: copying roots from f.space to t.space
+            while(void* p = stack.pop()) {
+                GCAllocation* al = GCAllocation::fromUserData(p);
 
+                assert(isMarked(al));
+
+                SemiSpaceHeap::Obj *obj = SemiSpaceHeap::Obj::fromAllocation(al);
+                obj = copy(obj);
+            }
+
+            // 2nd step: scanning objects
+            auto scan = tospace->obj_set.begin();
+            while (scan != tospace->obj_set.end()) {
+                auto obj = reinterpret_cast<SemiSpaceHeap::Obj*>(*scan);
+                // for P in children(*scan)
+                //     P = copy(P);
+                ++scan;
+            }
         }
 
-} // namespace gc
+        SemiSpaceHeap::Obj *SemiSpaceGC::copy(SemiSpaceHeap::Obj *obj) {
+            if (obj->forward)
+                return obj->forward;
+            else {
+                auto addr = SemiSpaceHeap::Obj::fromAllocation(tospace->alloc(obj->size));
+                // move
+                obj->forward = addr;
+                return addr;
+            }
+        }
+    } // namespace gc
 } // namespace pyston

@@ -8,6 +8,7 @@
 
 
 #include "gc/gc_base.h"
+#include "semispace_heap.h"
 
 namespace pyston {
 namespace gc {
@@ -16,7 +17,8 @@ namespace gc {
         SemiSpaceGC();
 
         virtual ~SemiSpaceGC() {
-            delete global_heap;
+            delete tospace;
+            delete fromspace;
         }
 
         virtual void runCollection() override;
@@ -25,6 +27,10 @@ namespace gc {
 
         void flip();
 
+        SemiSpaceHeap::Obj* copy(SemiSpaceHeap::Obj* obj);
+
+        SemiSpaceHeap* tospace;
+        SemiSpaceHeap* fromspace;
     };
 }
 }

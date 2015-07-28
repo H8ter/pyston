@@ -22,9 +22,14 @@ namespace gc {
             static const uintptr_t increment = 16 * 1024 * 1024;
             static const uintptr_t initial_map_size = 64 * 1024 * 1024;
 
-            using SemiSpace = Arena<ARENA_SIZE, initial_map_size, increment>;
+            class SSArena : public Arena<ARENA_SIZE, initial_map_size, increment> {
+            public:
+                SSArena(uintptr_t arena_start) : Arena(arena_start) { }
+            };
 
-            SemiSpace* fromspace;
+            //using SemiSpace = Arena<ARENA_SIZE, initial_map_size, increment>;
+            using SemiSpace = SSArena;
+
             SemiSpace* tospace;
 
             struct Obj {
@@ -48,7 +53,7 @@ namespace gc {
         public:
             friend class SemiSpaceGC;
 
-            SemiSpaceHeap();
+            SemiSpaceHeap(uintptr_t arena_start);
 
             virtual ~SemiSpaceHeap();
 

@@ -15,7 +15,7 @@ namespace pyston{
     namespace gc {
         MarkSweepGC::MarkSweepGC() {
             //global_heap = new DefaultHeap();
-            global_heap = new SemiSpaceHeap();
+            global_heap = new SemiSpaceHeap(LARGE_ARENA_START);
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;

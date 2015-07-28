@@ -6,13 +6,13 @@
 
 namespace pyston {
 namespace gc {
-        SemiSpaceHeap::SemiSpaceHeap() {
-            fromspace = new Arena<ARENA_SIZE, initial_map_size, increment>(SMALL_ARENA_START);
-            tospace   = new Arena<ARENA_SIZE, initial_map_size, increment>(LARGE_ARENA_START);
+        SemiSpaceHeap::SemiSpaceHeap(uintptr_t arena_start) {
+//            fromspace = new Arena<ARENA_SIZE, initial_map_size, increment>(SMALL_ARENA_START);
+//            tospace   = new Arena<ARENA_SIZE, initial_map_size, increment>(LARGE_ARENA_START);
+            tospace   = new SSArena(arena_start);
         }
 
         SemiSpaceHeap::~SemiSpaceHeap() {
-            delete fromspace;
             delete tospace;
         }
 
@@ -54,7 +54,6 @@ namespace gc {
 
             void *p = Obj::fromAllocation(al);
             auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            //obj.erase(it);
             obj_set.erase(*it);
 
             return rtn;
@@ -69,7 +68,6 @@ namespace gc {
 
             void *p = Obj::fromAllocation(alloc);
             auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            //obj.erase(it);
             obj_set.erase(*it);
         }
 
@@ -88,12 +86,8 @@ namespace gc {
         }
 
         void SemiSpaceHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
-
-            // passes iter_gc test
-            auto p = obj.begin();
-            while(p != obj.end()){
+            for (auto p = obj.begin(); p != obj.end(); ++p) {
                 if (!obj_set.count(*p)) {
-                    ++p;
                     continue;
                 }
 
@@ -101,13 +95,10 @@ namespace gc {
                 clearOrderingState(al);
                 if(isMarked(al)) {
                     clearMark(al);
-                    ++p;
                 }
                 else {
                     if (_doFree(al, &weakly_referenced))
-                        obj_set.erase(*p), ++p; //p = obj.erase(p);
-                    else
-                        ++p;
+                        obj_set.erase(*p);
                 }
             }
         }
