@@ -19,10 +19,17 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "gc/default_heap.h"
+//#include "gc/default_heap.h"
+#include "gc/heap.h"
+#include "gc/trace_stack.h"
+
+#include "core/common.h"
+#include "core/threading.h"
+#include "core/types.h"
 
 namespace pyston {
     namespace gc {
+
 #define TRACE_GC_MARKING 1
 #if TRACE_GC_MARKING
         extern FILE* trace_fp;
@@ -31,54 +38,17 @@ namespace pyston {
 #define GC_TRACE_LOG(...)
 #endif
 
-
         // If you want to have a static root "location" where multiple values could be stored, use this:
         class GCRootHandle;
 
         class GCBase;
 
-        enum TraceStackType {
-            MarkPhase,
-            FinalizationOrderingFindReachable,
-            FinalizationOrderingRemoveTemporaries,
-        };
-        class TraceStack;
 
         static std::unordered_set<GCRootHandle*>* getRootHandles() {
             static std::unordered_set<GCRootHandle*> root_handles;
             return &root_handles;
         }
     }
-
-    class gc::TraceStack {
-    private:
-        const int CHUNK_SIZE = 256;
-        const int MAX_FREE_CHUNKS = 50;
-
-        std::vector<void**> chunks;
-        static std::vector<void**> free_chunks;
-
-        void** cur;
-        void** start;
-        void** end;
-
-        TraceStackType visit_type;
-
-        void get_chunk();
-        void release_chunk(void** chunk);
-        void pop_chunk();
-
-    public:
-        TraceStack(TraceStackType type) : visit_type(type) { get_chunk(); }
-
-        TraceStack(TraceStackType type, const std::unordered_set<void*>& root_handles);
-        ~TraceStack();
-
-        void push(void* p);
-        void* pop_chunk_and_item();
-        void* pop();
-    };
-    //std::vector<void**> TraceStack::free_chunks;
 
     class gc::GCRootHandle  {
     public:

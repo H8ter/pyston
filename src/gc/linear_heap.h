@@ -45,8 +45,6 @@ namespace pyston {
                 }
             };
 
-            static const int OFFSET_DATA = offsetof(Obj, data);
-
             std::vector<void*> obj;
             std::set<void*> obj_set;
 

@@ -34,16 +34,9 @@ namespace pyston {
             obj.push_back(arena->cur);
             obj_set.insert(arena->cur);
 
-//            FILE *f = fopen("gc_trace.txt", "a");
             void* obj = arena->allocFromArena(size);
 
-//            fprintf(f, "%p | %p | %p | %p\n", (char*) tospace->arena_start
-//                    , (char*) tospace->frontier
-//                    , (char*) tospace->cur, obj);
-
-                    ASSERT(obj < arena->frontier, "Panic! May not alloc beyound the heap!");
-
-//            fclose(f);
+            ASSERT(obj < arena->frontier, "Panic! May not alloc beyound the heap!");
 
             return (Obj*)obj;
         }
