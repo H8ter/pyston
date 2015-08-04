@@ -5,55 +5,16 @@
 #ifndef PYSTON_SEMISPACE_HEAP_H
 #define PYSTON_SEMISPACE_HEAP_H
 
-
-
-#include "heap.h"
-#include <algorithm>
-#include <vector>
-#include <set>
+#include "linear_heap.h"
 
 namespace pyston {
-namespace gc {
-
-        class SemiSpaceGC;
+    namespace gc {
 
         class SemiSpaceHeap : public Heap {
-        private:
-            static const uintptr_t increment = 16 * 1024 * 1024;
-            static const uintptr_t initial_map_size = 64 * 1024 * 1024;
-
-            class SSArena : public Arena<ARENA_SIZE, initial_map_size, increment> {
-            public:
-                SSArena(uintptr_t arena_start) : Arena(arena_start) { }
-            };
-
-            //using SemiSpace = Arena<ARENA_SIZE, initial_map_size, increment>;
-            using SemiSpace = SSArena;
-
-            SemiSpace* tospace;
-
-            struct Obj {
-                size_t size;
-                Obj* forward;
-                GCAllocation data[0];
-
-                Obj() {
-                    forward = nullptr;
-                }
-
-                static Obj* fromAllocation(GCAllocation* alloc) {
-                    char* rtn = (char*)alloc - offsetof(Obj, data);
-                    return reinterpret_cast<Obj*>(rtn);
-                }
-            };
-
-            std::vector<void*> obj;
-            std::set<void*> obj_set;
-
         public:
             friend class SemiSpaceGC;
 
-            SemiSpaceHeap(uintptr_t arena_start);
+            SemiSpaceHeap();
 
             virtual ~SemiSpaceHeap();
 
@@ -77,10 +38,13 @@ namespace gc {
 
         private:
 
-            Obj* _alloc(size_t size);
+            LinearHeap * tospace;
+            LinearHeap * fromspace;
+
+            volatile char sp;
         };
 
-}
+    }
 }
 
 

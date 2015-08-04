@@ -56,19 +56,19 @@ namespace pyston {
                     // An arbitrary amount of stuff can happen between the 'new' and
                     // the call to the constructor (ie the args get evaluated), which
                     // can trigger a collection.
-                            ASSERT(cls->gc_visit, "%s", getTypeName(b));
-                    cls->gc_visit(&visitor, b);
+                    ASSERT(cls->gc_visit, "%s", getTypeName(b));
+//                    cls->gc_visit(&visitor, b);
                 }
             } else if (kind_id == GCKind::HIDDEN_CLASS) {
                 HiddenClass* hcls = reinterpret_cast<HiddenClass*>(p);
-                hcls->gc_visit(&visitor);
+//                hcls->gc_visit(&visitor);
             } else {
                 RELEASE_ASSERT(0, "Unhandled kind: %d", (int)kind_id);
             }
         }
 
         void gc::GCBase::graphTraversalMarking(gc::TraceStack &stack, GCVisitor &visitor) {
-            static StatCounter sc_us("us_gc_mark_phase_graph_traversal");
+            static StatCounter sc_us("us_glsec_mark_phase_graph_traversal");
             static StatCounter sc_marked_objs("gc_marked_object_count");
             Timer _t("traversing", /*min_usec=*/10000);
 
@@ -93,11 +93,13 @@ namespace pyston {
         }
 
         void gc::GCBase::markRoots(GCVisitor &visitor) {
+            visitor.allow_remap = true;
             GC_TRACE_LOG("Looking at the stack\n");
             threading::visitAllStacks(&visitor);
 
+
             GC_TRACE_LOG("Looking at root handles\n");
-            for (auto h : *getRootHandles()) {
+            for (auto h : *getRootHandles()) {          //always empty?
                 visitor.visit(h->value);
             }
 
@@ -106,15 +108,18 @@ namespace pyston {
                 visitor.visitPotentialRange((void* const*)e.first, (void* const*)e.second);
             }
 
-            GC_TRACE_LOG("Looking at pending finalization list\n");
-            for (auto box : pending_finalization_list) {
-                visitor.visit(box);
-            }
+//            GC_TRACE_LOG("Looking at pending finalization list\n");
+//            for (auto box : pending_finalization_list) {
+//                visitor.visit(box);
+//            }
+//
+//            GC_TRACE_LOG("Looking at weakrefs needing callbacks list\n");
+//            for (auto weakref : weakrefs_needing_callback_list) {
+//                visitor.visit(weakref);
+//            }
 
-            GC_TRACE_LOG("Looking at weakrefs needing callbacks list\n");
-            for (auto weakref : weakrefs_needing_callback_list) {
-                visitor.visit(weakref);
-            }
+
+            visitor.allow_remap = false;
         }
 
         //--------------------TRACESTACK---------------------

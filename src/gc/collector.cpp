@@ -28,17 +28,19 @@
 #include "runtime/objmodel.h"
 #include "runtime/types.h"
 
+#include "gc/semispace.h"
+
 #ifndef NVALGRIND
 #include "valgrind.h"
 #endif
 
 namespace pyston {
 namespace gc {
-
-    MarkSweepGC GC;
+    //MarkSweepGC GC;
+    SemiSpaceGC GC;
 
 #if TRACE_GC_MARKING
-FILE* trace_fp;
+//FILE* trace_fp;
 #endif
 
         std::deque<Box*>& pending_finalization_list() {

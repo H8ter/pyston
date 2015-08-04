@@ -101,6 +101,41 @@ void FrameInfo::gcVisit(GCVisitor* visitor) {
     visitor->visit(frame_obj);
 }
 
+//struct GCRemapOnStack
+//{
+//    struct GCRemapCookie
+//    {
+//        Box* b;
+//        GCRemapCookie(Box* b)
+//            : b(b)
+//        {
+//            GCRemapOnStack::push(b);
+//        }
+//
+//        ~GCRemapCookie()
+//        {
+//            GCRemapOnStack::pop(b);
+//        }
+//    };
+//
+//
+//
+//
+//private:
+//    static void* push(Box* b)
+//    {
+//        remap.insert(b, nullptr);
+//    }
+//
+//    static void* pop(Box* b)
+//    {
+//        remap.erase(b);
+//    }
+//
+//    static unordered_map<Box*, Box*> remap;
+//};
+
+
 // Analogue of PyType_GenericAlloc (default tp_alloc), but should only be used for Pyston classes!
 extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems) noexcept {
     assert(cls);
@@ -134,8 +169,19 @@ extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems)
     }
 #endif
 
+//    GCRemapOnStack::GCRemapCookie _(cls);
+
+GC_TRACE_LOG("before generic alloc: %p %p\n", cls, &cls);
+
     void* mem = gc_alloc(size, gc::GCKind::PYTHON);
     RELEASE_ASSERT(mem, "");
+
+GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
+
+//    if (/**/)
+//    {
+//        cls = GCRemapOnStack::remap(cls);
+//    }
 
     // Not sure if we can get away with not initializing this memory.
     // I think there are small optimizations we can do, like not initializing cls (always

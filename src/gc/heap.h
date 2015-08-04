@@ -23,8 +23,6 @@
 
 #include <sys/mman.h>
 
-#define DS_DEFINE_SPINLOCK(name) pyston::threading::NopLock name
-
 namespace pyston {
 
 
@@ -70,6 +68,7 @@ static_assert(sizeof(GCAllocation) <= sizeof(void*),
 class Heap {
 public:
 
+//    DS_DEFINE_MUTEX(lock);
     DS_DEFINE_SPINLOCK(lock);
 
     virtual ~Heap() {}
@@ -178,7 +177,7 @@ public:
         assert(((uint8_t*)frontier + size) < arena_end && "arena full");
 
         void* mrtn = mmap(frontier, size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        RELEASE_ASSERT((uintptr_t)mrtn != -1, "failed to allocate memory from OS");
+        RELEASE_ASSERT((uintptr_t)mrtn != -1, "failed to allocate memory from OS. size: %d", (int)size);
         ASSERT(mrtn == frontier, "%p %p\n", mrtn, cur);
 
         frontier = (uint8_t*)frontier + size;

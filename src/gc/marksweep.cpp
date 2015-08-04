@@ -2,20 +2,20 @@
 // Created by user on 7/25/15.
 //
 
+#include <unistd.h>
+
 #include "marksweep.h"
 
 #include "runtime/objmodel.h"
 #include "runtime/types.h"
-#include "gc/heap.h"
 #include "gc/default_heap.h"
-
-#include "gc/semispace_heap.h"
+#include "gc/linear_heap.h"
 
 namespace pyston{
     namespace gc {
         MarkSweepGC::MarkSweepGC() {
             //global_heap = new DefaultHeap();
-            global_heap = new SemiSpaceHeap(LARGE_ARENA_START);
+            global_heap = new LinearHeap(LARGE_ARENA_START);
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;

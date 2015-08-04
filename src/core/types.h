@@ -30,6 +30,8 @@
 #include "core/stats.h"
 #include "core/stringpool.h"
 
+#include <unordered_map>
+
 namespace llvm {
 class Function;
 class Type;
@@ -47,9 +49,12 @@ private:
     bool isValid(void* p);
 
 public:
+    bool allow_remap;
+    std::unordered_map<void**, void*> remap;
     TraceStack* stack;
     Heap* global_heap;
-    GCVisitor(TraceStack* stack, Heap* global_heap) : stack(stack), global_heap(global_heap) {}
+    GCVisitor(TraceStack* stack, Heap* global_heap) :
+            allow_remap(false), stack(stack), global_heap(global_heap) {}
 
     // These all work on *user* pointers, ie pointers to the user_data section of GCAllocations
     void visitIf(void* p) {
@@ -60,6 +65,8 @@ public:
     void visitRange(void* const* start, void* const* end);
     void visitPotential(void* p);
     void visitPotentialRange(void* const* start, void* const* end);
+
+    void addReference(void** from, void* to);
 };
 
 } // namespace gc

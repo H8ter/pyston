@@ -28,6 +28,8 @@
 #include "valgrind.h"
 #endif
 
+#include <unordered_map>
+
 //#undef VERBOSITY
 //#define VERBOSITY(x) 2
 
@@ -46,7 +48,7 @@ namespace gc {
             return;
         }
 
-                ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
+        ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
         stack->push(p);
     }
 
@@ -58,6 +60,12 @@ namespace gc {
         assert((uintptr_t)end % sizeof(void*) == 0);
 
         while (start < end) {
+#if TRACE_GC_MARKING
+            GC_TRACE_LOG("Found precise reference to object %p from %p\n", *start, start);
+#endif
+
+            addReference(const_cast<void**>(start), *start);
+
             visit(*start);
             start++;
         }
@@ -89,8 +97,27 @@ namespace gc {
         }
 #endif
 
+            addReference(const_cast<void**>(start), *start);
+
             visitPotential(*start);
             start++;
+        }
+    }
+
+    void GCVisitor::addReference(void** from, void *to) {
+        if(!allow_remap) return;
+
+        GCAllocation* a = global_heap->getAllocationFromInteriorPointer(to);
+        if (a) {
+            void* p = a->user_data;
+
+            if ((uintptr_t)p < SMALL_ARENA_START || (uintptr_t)p >= HUGE_ARENA_START + ARENA_SIZE) {
+                return;
+            }
+
+            ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
+
+            remap[from] = to;
         }
     }
 

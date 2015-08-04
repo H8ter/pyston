@@ -23,11 +23,11 @@
 
 namespace pyston {
     namespace gc {
-#define TRACE_GC_MARKING 0
+#define TRACE_GC_MARKING 1
 #if TRACE_GC_MARKING
         extern FILE* trace_fp;
         #define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)
-        #else
+#else
 #define GC_TRACE_LOG(...)
 #endif
 

@@ -12,26 +12,36 @@
 
 namespace pyston {
 namespace gc {
+
     class SemiSpaceGC : public GCBase {
     public:
         SemiSpaceGC();
 
-        virtual ~SemiSpaceGC() {
-            delete tospace;
-            delete fromspace;
-        }
+        virtual ~SemiSpaceGC();
 
         virtual void runCollection() override;
 
     private:
 
-        void flip();
+        void flip(GCVisitor &visitor, TraceStack &stack);
 
-        SemiSpaceHeap::Obj* copy(SemiSpaceHeap::Obj* obj);
+        void collectRoots(GCVisitor &visitor, TraceStack &stack);
 
-        SemiSpaceHeap* tospace;
-        SemiSpaceHeap* fromspace;
+        void scanCopy(GCVisitor &visitor, TraceStack &stack);
+
+        void copyChildren(GCVisitor &visitor, TraceStack &stack, void *data);
+
+        void* copy(LinearHeap::Obj* obj);
+
+        void* moveObj(LinearHeap::Obj *obj);
+
+        void doRemap(GCVisitor &visitor);
+
+        // for testing
+        void showObjectFromData(FILE *f, void *data);
     };
+
+
 }
 }
 
