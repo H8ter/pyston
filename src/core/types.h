@@ -32,6 +32,8 @@
 
 #include <unordered_map>
 
+#include "gc/gc_visitor.h"
+
 namespace llvm {
 class Function;
 class Type;
@@ -40,36 +42,7 @@ class Value;
 
 namespace pyston {
 
-namespace gc {
 
-class TraceStack;
-class Heap;
-class GCVisitor {
-private:
-    bool isValid(void* p);
-
-public:
-    bool allow_remap;
-    std::unordered_map<void**, void*> remap;
-    TraceStack* stack;
-    Heap* global_heap;
-    GCVisitor(TraceStack* stack, Heap* global_heap) :
-            allow_remap(false), stack(stack), global_heap(global_heap) {}
-
-    // These all work on *user* pointers, ie pointers to the user_data section of GCAllocations
-    void visitIf(void* p) {
-        if (p)
-            visit(p);
-    }
-    void visit(void* p);
-    void visitRange(void* const* start, void* const* end);
-    void visitPotential(void* p);
-    void visitPotentialRange(void* const* start, void* const* end);
-
-    void addReference(void** from, void* to);
-};
-
-} // namespace gc
 using gc::GCVisitor;
 
 enum class EffortLevel {

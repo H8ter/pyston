@@ -12,6 +12,7 @@
 #include "core/util.h"
 #include "runtime/objmodel.h"
 #include "runtime/types.h"
+#include "gc/addr_remap.h"
 
 namespace pyston {
     namespace gc {
@@ -88,7 +89,6 @@ namespace pyston {
         }
 
         void GCBase::markRoots(GCVisitor &visitor) {
-            visitor.allow_remap = true;
             GC_TRACE_LOG("Looking at the stack\n");
             threading::visitAllStacks(&visitor);
 
@@ -113,8 +113,6 @@ namespace pyston {
 //                visitor.visit(weakref);
 //            }
 
-
-            visitor.allow_remap = false;
         }
 
 

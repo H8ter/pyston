@@ -7,6 +7,7 @@
 #include "gc/collector.h"
 #include "runtime/types.h"
 #include "runtime/objmodel.h"
+#include "gc/addr_remap.h"
 
 namespace pyston {
 namespace gc{
@@ -97,7 +98,9 @@ namespace gc{
         }
 
         void SemiSpaceGC::flip(GCVisitor &visitor, TraceStack &stack) {
+            AddrRemap::enable();
             markRoots(visitor);
+            AddrRemap::disable();
 
             // 1st step: copying roots from f.space to t.space
             collectRoots(visitor, stack);
@@ -211,19 +214,26 @@ namespace gc{
         }
 
         void SemiSpaceGC::doRemap(GCVisitor &visitor) {
+            int cnt = 0;
+
             auto fromspace = static_cast<SemiSpaceHeap *>(global_heap)->fromspace;
 
-            std::unordered_map<void**, void*>::iterator it = visitor.remap.begin();
-            for(; it != visitor.remap.end(); ++it) {
+            std::unordered_map<void**, void*>::iterator it = AddrRemap::remap.begin();
+            for(; it != AddrRemap::remap.end(); ++it) {
                 if (fromspace->arena->contains(it->second)) {
                     void* f_addr = LinearHeap::Obj::fromUserData(it->second)->forward;
                     *it->first = f_addr;
+
+                    cnt++;
                 }
             }
 
-            // visitor.remap.clear();
+            // AddrRemap::remap.clear();
+            GC_TRACE_LOG("doRemap %d\n", cnt);
         }
 
+        bool AddrRemap::enabled;
+        std::unordered_map<void**, void*> AddrRemap::remap;
 
     } // namespace gc
 } // namespace pyston

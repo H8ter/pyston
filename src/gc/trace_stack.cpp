@@ -10,6 +10,23 @@
 
 namespace pyston {
 namespace gc {
+
+    TraceStack::TraceStack(TraceStackType type, const std::unordered_set<void*>& root_handles) : visit_type(type) {
+        get_chunk();
+        for (void* p : root_handles) {
+            assert(!isMarked(GCAllocation::fromUserData(p)));
+            push(p);
+        }
+    }
+
+    TraceStack::~TraceStack() {
+        RELEASE_ASSERT(end - cur == CHUNK_SIZE, "destroying non-empty TraceStack");
+
+        // We always have a block available in case we want to push items onto the TraceStack,
+        // but that chunk needs to be released after use to avoid a memory leak.
+        release_chunk(start);
+    }
+
     void TraceStack::get_chunk() {
         if (free_chunks.size()) {
             start = free_chunks.back();
@@ -116,22 +133,6 @@ namespace gc {
             return *--cur;
 
         return pop_chunk_and_item();
-    }
-
-    TraceStack::TraceStack(TraceStackType type, const std::unordered_set<void*>& root_handles) : visit_type(type) {
-        get_chunk();
-        for (void* p : root_handles) {
-            assert(!isMarked(GCAllocation::fromUserData(p)));
-            push(p);
-        }
-    }
-
-    TraceStack::~TraceStack() {
-        RELEASE_ASSERT(end - cur == CHUNK_SIZE, "destroying non-empty TraceStack");
-
-        // We always have a block available in case we want to push items onto the TraceStack,
-        // but that chunk needs to be released after use to avoid a memory leak.
-        release_chunk(start);
     }
 
     std::vector<void**> TraceStack::free_chunks;
