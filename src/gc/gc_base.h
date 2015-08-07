@@ -47,7 +47,7 @@ namespace pyston {
         Box* value;
 
         GCRootHandle() { gc::getRootHandles()->insert(this); }
-        ~GCRootHandle() { gc :: getRootHandles()->erase(this); };
+        ~GCRootHandle() { gc::getRootHandles()->erase(this); };
 
         void operator=(Box* b) { value = b; }
 
@@ -62,6 +62,7 @@ namespace pyston {
         void* gc_realloc(void* ptr, size_t bytes) __attribute__((visibility("default")));
         void gc_free(void* ptr) __attribute__((visibility("default")));
 
+//        virtual void* gc_alloc_root(size_t bytes, GCKind kind_id) __attribute__((visibility("default"))) = 0;
 
         virtual void runCollection() = 0;
 
@@ -77,6 +78,8 @@ namespace pyston {
         static std::unordered_set<void*> roots;
         static std::vector<std::pair<void*, void*>> potential_root_ranges;
         static std::unordered_set<void*> nonheap_roots;
+
+        static std::unordered_set<void**> ref_to_roots;
 
         Heap* global_heap;
 

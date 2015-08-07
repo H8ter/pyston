@@ -8,13 +8,14 @@
 #include "runtime/types.h"
 #include "runtime/objmodel.h"
 #include "gc/addr_remap.h"
+#include "gc/gc_visitor.h"
 
 namespace pyston {
 namespace gc{
 
-#if TRACE_GC_MARKING
-        FILE* trace_fp = fopen("gc_trace.txt", "w");
-#endif
+//#if TRACE_GC_MARKING
+//        FILE* trace_fp = fopen("gc_trace.txt", "w");
+//#endif
 
 // SemiSpace GC algorithm's pseudocode
 //    flip():
@@ -106,7 +107,10 @@ namespace gc{
             collectRoots(visitor, stack);
 
             // 2nd step: scanning & copying objects
-            scanCopy(visitor, stack);
+            GC_TRACE_LOG("Scan & Copy RootSpace\n");
+            scanCopy(static_cast<SemiSpaceHeap *>(global_heap)->rootspace, visitor, stack);
+            GC_TRACE_LOG("Scan & Copy ToSpace\n");
+            scanCopy(static_cast<SemiSpaceHeap *>(global_heap)->tospace,   visitor, stack);
 
             // weird stuff
 //            std::vector<BoxedClass*> classes_to_remove;
@@ -140,12 +144,13 @@ namespace gc{
                 assert(isMarked(al));
 
                 LinearHeap::Obj *root = LinearHeap::Obj::fromAllocation(al);
-                copy(root);
+                // copy object from fspace to tspace only if it's not in rootspace
+                if (!static_cast<SemiSpaceHeap *>(global_heap)->rootspace->arena->contains(p))
+                    copy(root);
             }
         }
 
-        void SemiSpaceGC::scanCopy(GCVisitor &visitor, TraceStack &stack) {
-            auto tospace = static_cast<SemiSpaceHeap *>(global_heap)->tospace;
+        void SemiSpaceGC::scanCopy(LinearHeap* tospace, GCVisitor &visitor, TraceStack &stack) {
             auto scan = tospace->obj_set.begin();
 
             while (scan != tospace->obj_set.end()) {
@@ -162,7 +167,11 @@ namespace gc{
         }
 
         void SemiSpaceGC::copyChildren(GCVisitor &visitor, TraceStack &stack, void *parent) {
+            auto rootspace = static_cast<SemiSpaceHeap *>(global_heap)->rootspace;
+
             while(void* P = stack.pop()) {
+                if(rootspace->arena->contains(P)) continue;
+
                 GCAllocation* al = GCAllocation::fromUserData(P);
                 LinearHeap::Obj* child = LinearHeap::Obj::fromAllocation(al);
 
@@ -206,6 +215,8 @@ namespace gc{
         }
 
         void* SemiSpaceGC::moveObj(LinearHeap::Obj *obj) {
+            ASSERT(!static_cast<SemiSpaceHeap *>(global_heap)->rootspace->arena->contains(obj), "trying to move root object\n");
+
             auto addr = LinearHeap::Obj::fromAllocation(global_heap->alloc(obj->size));
 
             memcpy(addr, obj, obj->size + sizeof(LinearHeap::Obj) + sizeof(GCAllocation));
@@ -214,6 +225,7 @@ namespace gc{
         }
 
         void SemiSpaceGC::doRemap(GCVisitor &visitor) {
+            GC_TRACE_LOG("Remap\n");
             int cnt = 0;
 
             auto fromspace = static_cast<SemiSpaceHeap *>(global_heap)->fromspace;
@@ -221,19 +233,45 @@ namespace gc{
             std::unordered_map<void**, void*>::iterator it = AddrRemap::remap.begin();
             for(; it != AddrRemap::remap.end(); ++it) {
                 if (fromspace->arena->contains(it->second)) {
-                    void* f_addr = LinearHeap::Obj::fromUserData(it->second)->forward;
-                    *it->first = f_addr;
+                    auto old_obj = LinearHeap::Obj::fromUserData(it->second);
+                    if (old_obj->magic == 0xCAFEBABE) {
+                        void *f_addr = old_obj->forward;
+                        *it->first = f_addr;
 
-                    cnt++;
+                        cnt++;
+                    }
                 }
             }
 
-            // AddrRemap::remap.clear();
-            GC_TRACE_LOG("doRemap %d\n", cnt);
+            GC_TRACE_LOG("doRemap 1 %d\n", cnt);
+
+//            cnt = 0;
+//            std::unordered_set<void**>::iterator ref_root_it = ref_to_roots.begin();
+//            for(; ref_root_it != ref_to_roots.end(); ++ref_root_it) {
+//                void** ref = *ref_root_it;
+//                if (fromspace->arena->contains(*ref)) {
+//                    void* f_addr = LinearHeap::Obj::fromUserData(*ref)->forward;
+//                    *ref = f_addr;
+//                    cnt++;
+//                }
+//            }
+//
+//            // AddrRemap::remap.clear();
+//            GC_TRACE_LOG("doRemap 2 %d\n", cnt);
         }
 
         bool AddrRemap::enabled;
         std::unordered_map<void**, void*> AddrRemap::remap;
 
+//        void* SemiSpaceGC::gc_alloc_root(size_t bytes, GCKind kind_id) {
+//            auto gh = static_cast<SemiSpaceHeap *>(global_heap);
+//            gh->alloc_root = true;
+//
+//            void *p = this->gc_alloc(bytes, kind_id);
+//
+//            gh->alloc_root = false;
+//
+//            return p;
+//        }
     } // namespace gc
 } // namespace pyston

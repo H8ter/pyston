@@ -13,6 +13,10 @@
 namespace pyston {
 namespace gc {
 
+#if TRACE_GC_MARKING
+//        extern FILE* trace_fp;
+#endif
+
     class SemiSpaceGC : public GCBase {
     public:
         SemiSpaceGC();
@@ -21,13 +25,15 @@ namespace gc {
 
         virtual void runCollection() override;
 
+//        virtual void *gc_alloc_root(size_t bytes, GCKind kind_id) override;
+
     private:
 
         void flip(GCVisitor &visitor, TraceStack &stack);
 
         void collectRoots(GCVisitor &visitor, TraceStack &stack);
 
-        void scanCopy(GCVisitor &visitor, TraceStack &stack);
+        void scanCopy(LinearHeap* tospace, GCVisitor &visitor, TraceStack &stack);
 
         void copyChildren(GCVisitor &visitor, TraceStack &stack, void *data);
 

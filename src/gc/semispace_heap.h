@@ -7,6 +7,8 @@
 
 #include "linear_heap.h"
 
+#include <functional>
+
 namespace pyston {
     namespace gc {
 
@@ -41,7 +43,16 @@ namespace pyston {
             LinearHeap * tospace;
             LinearHeap * fromspace;
 
+            LinearHeap * rootspace;
+
+            std::vector<LinearHeap*> spaces;
+
+            typedef void (LinearHeap::* heapAction)(GCAllocation*);
+            std::function<void(GCAllocation*, heapAction)> foo;
+
             volatile char sp;
+
+            volatile char alloc_root;
         };
 
     }

@@ -36,11 +36,11 @@
 
 namespace pyston {
 namespace gc {
-    //MarkSweepGC GC;
-    SemiSpaceGC GC;
+    MarkSweepGC GC;
+//    SemiSpaceGC GC;
 
 #if TRACE_GC_MARKING
-//FILE* trace_fp;
+FILE* trace_fp;
 #endif
 
         std::deque<Box*>& pending_finalization_list() {
@@ -57,7 +57,13 @@ namespace gc {
 //static void* max_nonheap_root = 0;
 //static void* min_nonheap_root = (void*)~0;
 
-
+void registerReferenceToPermanentRoot(void** ref_to_root) {
+//    GC_TRACE_LOG("register reference from %p to root %p\n", ref_to_root, *ref_to_root);
+//    fprintf(stderr, "register reference from %p to root %p\n", ref_to_root, *ref_to_root);
+//    assert(GC.global_heap->getAllocationFromInteriorPointer(*ref_to_root));
+//
+//    GC.ref_to_roots.insert(ref_to_root);
+}
 
 void registerPermanentRoot(void* obj, bool allow_duplicates) {
     assert(GC.global_heap->getAllocationFromInteriorPointer(obj));
@@ -66,12 +72,17 @@ void registerPermanentRoot(void* obj, bool allow_duplicates) {
     if (!allow_duplicates)
         ASSERT(GC.roots.count(obj) == 0, "Please only register roots once");
 
+//    GC_TRACE_LOG("register permanent root %p\n", obj); // 0x337
+    // for now root must be in HugeArena's address space
+//    RELEASE_ASSERT((uintptr_t)obj >= HUGE_ARENA_START && (uintptr_t)obj < HUGE_ARENA_START + ARENA_SIZE, "%p\n", obj);
+
     GC.roots.insert(obj);
 }
 
 void deregisterPermanentRoot(void* obj) {
     assert(GC.global_heap->getAllocationFromInteriorPointer(obj));
     ASSERT(GC.roots.count(obj), "");
+//    GC_TRACE_LOG("del permanent root");
     GC.roots.erase(obj);
 }
 
@@ -79,11 +90,13 @@ void registerPotentialRootRange(void* start, void* end) {
     GC.potential_root_ranges.push_back(std::make_pair(start, end));
 }
 
+// 75 occurrences
 extern "C" PyObject* PyGC_AddRoot(PyObject* obj) noexcept {
     if (obj) {
         // Allow duplicates from CAPI code since they shouldn't have to know
         // which objects we already registered as roots:
         registerPermanentRoot(obj, /* allow_duplicates */ true);
+//        GC_TRACE_LOG("PyGC_AddRoot %p\n", obj);
     }
     return obj;
 }

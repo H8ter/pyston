@@ -35,8 +35,8 @@ namespace pyston {
 
 namespace gc {
 
-//extern MarkSweepGC GC;
-extern SemiSpaceGC GC;
+extern MarkSweepGC GC;
+//extern SemiSpaceGC GC;
 
 #if STAT_ALLOCATIONS
 static StatCounter gc_alloc_bytes("gc_alloc_bytes");
@@ -64,6 +64,10 @@ extern "C" inline void* gc_realloc(void* ptr, size_t bytes) {
 extern "C" inline void gc_free(void* ptr) {
     GC.gc_free(ptr);
 }
+
+//extern "C" inline void* gc_alloc_root(size_t bytes, GCKind kind_id) {
+//    return GC.gc_alloc_root(bytes, kind_id);
+//}
 
 }
 }

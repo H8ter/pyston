@@ -1034,6 +1034,8 @@ bool PystonSourceReader::set_encoding(const std::string& coding) {
     if (readline == NULL)
         return false;
 
+//    GC_TRACE_LOG("(pypa) register root %p %p\n", &readline, readline);
+    gc::registerReferenceToPermanentRoot((void**)&readline);
     gc::registerPermanentRoot(readline);
     return true;
 }

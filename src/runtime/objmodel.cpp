@@ -486,8 +486,10 @@ BoxedClass::BoxedClass(BoxedClass* base, gcvisit_func gc_visit, int attrs_offset
         assert(attrs_offset % sizeof(void*) == 0); // Not critical I suppose, but probably signals a bug
     }
 
-    if (!is_user_defined)
+    if (!is_user_defined) {
         gc::registerPermanentRoot(this);
+//        GC_TRACE_LOG("(objmodel) register root %p\n", this);
+    }
 }
 
 void BoxedClass::finishInitialization() {

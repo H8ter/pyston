@@ -36,6 +36,9 @@ namespace gc {
 
                 ASSERT(heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
 
+//                GC_TRACE_LOG("%p\n", a);
+//                GC_TRACE_LOG("Seeking for %p [%p]\n", to, from);
+
                 remap[from] = to;
             }
         }

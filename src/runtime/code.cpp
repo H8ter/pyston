@@ -112,6 +112,8 @@ Box* codeForCLFunction(CLFunction* f) {
     if (!f->code_obj) {
         f->code_obj = new BoxedCode(f);
         // CLFunctions don't currently participate in GC.  They actually never get freed currently.
+//        GC_TRACE_LOG("(code) register root %p %p\n", &f->code_obj, f->code_obj);
+        gc::registerReferenceToPermanentRoot((void**)&f->code_obj);
         gc::registerPermanentRoot(f->code_obj);
     }
     return f->code_obj;

@@ -567,6 +567,8 @@ static __thread PythonUnwindSession* cur_unwind;
 PythonUnwindSession* beginPythonUnwindSession() {
     if (!cur_unwind) {
         cur_unwind = new PythonUnwindSession();
+//        GC_TRACE_LOG("(unwinding) register root %p %p\n", &cur_unwind, cur_unwind);
+        gc::registerReferenceToPermanentRoot((void**)&cur_unwind);
         pyston::gc::registerPermanentRoot(cur_unwind);
     }
     cur_unwind->begin();

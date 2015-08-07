@@ -1155,6 +1155,9 @@ void setupBuiltins() {
         = BoxedHeapClass::create(type_cls, object_cls, NULL, 0, 0, sizeof(Box), false, "ellipsis");
     Ellipsis = new (ellipsis_cls) Box();
     assert(Ellipsis->cls);
+
+//    GC_TRACE_LOG("(builtins) register root %p %p\n", &Ellipsis, Ellipsis);
+    gc::registerReferenceToPermanentRoot((void**)&Ellipsis);
     gc::registerPermanentRoot(Ellipsis);
 
     builtins_module->giveAttr("Ellipsis", Ellipsis);
@@ -1170,6 +1173,8 @@ void setupBuiltins() {
     notimplemented_cls->giveAttr("__repr__", new BoxedFunction(boxRTFunction((void*)notimplementedRepr, STR, 1)));
     notimplemented_cls->freeze();
     NotImplemented = new (notimplemented_cls) Box();
+//    GC_TRACE_LOG("(builtins) register root %p %p\n", &NotImplemented, NotImplemented);
+    gc::registerReferenceToPermanentRoot((void**)&NotImplemented);
     gc::registerPermanentRoot(NotImplemented);
 
     builtins_module->giveAttr("NotImplemented", NotImplemented);

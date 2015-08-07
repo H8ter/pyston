@@ -32,6 +32,7 @@
 #include "core/stats.h"
 #include "core/types.h"
 #include "gc/collector.h"
+#include "gc/addr_remap.h"
 #include "runtime/classobj.h"
 #include "runtime/complex.h"
 #include "runtime/dict.h"
@@ -101,40 +102,6 @@ void FrameInfo::gcVisit(GCVisitor* visitor) {
     visitor->visit(frame_obj);
 }
 
-//struct GCRemapOnStack
-//{
-//    struct GCRemapCookie
-//    {
-//        Box* b;
-//        GCRemapCookie(Box* b)
-//            : b(b)
-//        {
-//            GCRemapOnStack::push(b);
-//        }
-//
-//        ~GCRemapCookie()
-//        {
-//            GCRemapOnStack::pop(b);
-//        }
-//    };
-//
-//
-//
-//
-//private:
-//    static void* push(Box* b)
-//    {
-//        remap.insert(b, nullptr);
-//    }
-//
-//    static void* pop(Box* b)
-//    {
-//        remap.erase(b);
-//    }
-//
-//    static unordered_map<Box*, Box*> remap;
-//};
-
 
 // Analogue of PyType_GenericAlloc (default tp_alloc), but should only be used for Pyston classes!
 extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems) noexcept {
@@ -171,17 +138,14 @@ extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems)
 
 //    GCRemapOnStack::GCRemapCookie _(cls);
 
-GC_TRACE_LOG("before generic alloc: %p %p\n", cls, &cls);
+//GC_TRACE_LOG("before generic alloc: %p %p\n", cls, &cls);
+    gc::AddrRemap::enable();
+    gc::AddrRemap::addReference(gc::GC.global_heap, (void**)&cls, (void*)cls);
+    gc::AddrRemap::disable();
 
     void* mem = gc_alloc(size, gc::GCKind::PYTHON);
     RELEASE_ASSERT(mem, "");
 
-GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
-
-//    if (/**/)
-//    {
-//        cls = GCRemapOnStack::remap(cls);
-//    }
 
     // Not sure if we can get away with not initializing this memory.
     // I think there are small optimizations we can do, like not initializing cls (always
@@ -195,6 +159,8 @@ GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
 
     PyObject_INIT(rtn, cls);
     assert(rtn->cls);
+
+//    GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
 
     return rtn;
 }
@@ -250,6 +216,7 @@ void* BoxVar::operator new(size_t size, BoxedClass* cls, size_t nitems) {
 
     void* mem = cls->tp_alloc(cls, nitems);
     RELEASE_ASSERT(mem, "");
+
     return mem;
 }
 
@@ -263,6 +230,7 @@ void* Box::operator new(size_t size, BoxedClass* cls) {
 
     void* mem = cls->tp_alloc(cls, 0);
     RELEASE_ASSERT(mem, "");
+
     return mem;
 }
 
@@ -846,8 +814,11 @@ static Box* typeCallInner(CallRewriteArgs* rewrite_args, ArgPassSpec argspec, Bo
     if (allowable_news.empty()) {
         for (BoxedClass* allowed_cls : { object_cls, enumerate_cls, xrange_cls, tuple_cls, list_cls, dict_cls }) {
             auto new_obj = typeLookup(allowed_cls, new_str, NULL);
+
             gc::registerPermanentRoot(new_obj);
             allowable_news.push_back(new_obj);
+//            GC_TRACE_LOG("(types 3) register root %p %p\n", &allowable_news[allowable_news.size()-1], new_obj);
+            gc::registerReferenceToPermanentRoot((void**)&allowable_news[allowable_news.size()-1]);
         }
     }
 
@@ -3087,8 +3058,12 @@ bool TRACK_ALLOCATIONS = false;
 void setupRuntime() {
 
     root_hcls = HiddenClass::makeRoot();
+//    GC_TRACE_LOG("(types 1) register root %p %p\n", &root_hcls, root_hcls);
+    gc::registerReferenceToPermanentRoot((void**)&root_hcls);
     gc::registerPermanentRoot(root_hcls);
     HiddenClass::dict_backed = HiddenClass::makeDictBacked();
+//    GC_TRACE_LOG("(types 2) register root %p %p\n", &HiddenClass::dict_backed, HiddenClass::dict_backed);
+    gc::registerReferenceToPermanentRoot((void**)&HiddenClass::dict_backed);
     gc::registerPermanentRoot(HiddenClass::dict_backed);
 
     // Disable the GC while we do some manual initialization of the object hierarchy:
@@ -3098,9 +3073,12 @@ void setupRuntime() {
     // object-creation routines look at the class to see the allocation size.
     void* mem = gc_alloc(sizeof(BoxedClass), gc::GCKind::PYTHON);
     object_cls = ::new (mem) BoxedClass(NULL, &boxGCHandler, 0, 0, sizeof(Box), false);
+//    GC_TRACE_LOG("BoxedClass %p\n", object_cls);
+    gc::registerReferenceToPermanentRoot((void**)&object_cls);
     mem = gc_alloc(sizeof(BoxedHeapClass), gc::GCKind::PYTHON);
     type_cls = ::new (mem) BoxedHeapClass(object_cls, &typeGCHandler, offsetof(BoxedClass, attrs),
                                           offsetof(BoxedClass, tp_weaklist), sizeof(BoxedHeapClass), false, NULL);
+
     type_cls->tp_flags |= Py_TPFLAGS_TYPE_SUBCLASS;
     type_cls->tp_itemsize = sizeof(BoxedHeapClass::SlotOffset);
     PyObject_Init(object_cls, type_cls);
@@ -3110,12 +3088,16 @@ void setupRuntime() {
     new (&type_cls->attrs) HCAttrs(HiddenClass::makeSingleton());
 
     none_cls = new (0) BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(Box), false, NULL);
+
     None = new (none_cls) Box();
     assert(None->cls);
+//    GC_TRACE_LOG("(types ) register root %p %p\n", &None, None);
+    gc::registerReferenceToPermanentRoot((void**)&None);
     gc::registerPermanentRoot(None);
 
     // You can't actually have an instance of basestring
     basestring_cls = new (0) BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(Box), false, NULL);
+
 
     // We add 1 to the tp_basicsize of the BoxedString in order to hold the null byte at the end.
     // We use offsetof(BoxedString, s_data) as opposed to sizeof(BoxedString) so that we can
@@ -3153,60 +3135,81 @@ void setupRuntime() {
     // but we copy that, which means we have to subtract that extra pointer to get the tp_basicsize:
     tuple_cls = new (0)
         BoxedHeapClass(object_cls, &tupleGCHandler, 0, 0, sizeof(BoxedTuple) - sizeof(Box*), false, boxString("tuple"));
+
     tuple_cls->tp_flags |= Py_TPFLAGS_TUPLE_SUBCLASS;
     tuple_cls->tp_itemsize = sizeof(Box*);
     tuple_cls->tp_mro = BoxedTuple::create({ tuple_cls, object_cls });
     EmptyTuple = BoxedTuple::create({});
+//    GC_TRACE_LOG("(types 5) register root %p %p\n", &EmptyTuple, EmptyTuple);
+    gc::registerReferenceToPermanentRoot((void**)&EmptyTuple);
     gc::registerPermanentRoot(EmptyTuple);
     list_cls = new (0) BoxedHeapClass(object_cls, &listGCHandler, 0, 0, sizeof(BoxedList), false, boxString("list"));
+
     list_cls->tp_flags |= Py_TPFLAGS_LIST_SUBCLASS;
     pyston_getset_cls = new (0)
         BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(BoxedGetsetDescriptor), false, boxString("getset"));
+
     attrwrapper_cls = new (0) BoxedHeapClass(object_cls, &AttrWrapper::gcHandler, 0, 0, sizeof(AttrWrapper), false,
                                              static_cast<BoxedString*>(boxString("attrwrapper")));
+
     dict_cls = new (0) BoxedHeapClass(object_cls, &dictGCHandler, 0, 0, sizeof(BoxedDict), false,
                                       static_cast<BoxedString*>(boxString("dict")));
+
     dict_cls->tp_flags |= Py_TPFLAGS_DICT_SUBCLASS;
     file_cls = new (0) BoxedHeapClass(object_cls, &BoxedFile::gcHandler, 0, offsetof(BoxedFile, weakreflist),
                                       sizeof(BoxedFile), false, static_cast<BoxedString*>(boxString("file")));
+
     int_cls = new (0)
         BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(BoxedInt), false, static_cast<BoxedString*>(boxString("int")));
+
     int_cls->tp_flags |= Py_TPFLAGS_INT_SUBCLASS;
     bool_cls = new (0)
         BoxedHeapClass(int_cls, NULL, 0, 0, sizeof(BoxedBool), false, static_cast<BoxedString*>(boxString("bool")));
+
     complex_cls = new (0) BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(BoxedComplex), false,
                                          static_cast<BoxedString*>(boxString("complex")));
+
     long_cls = new (0) BoxedHeapClass(object_cls, &BoxedLong::gchandler, 0, 0, sizeof(BoxedLong), false,
                                       static_cast<BoxedString*>(boxString("long")));
+
     long_cls->tp_flags |= Py_TPFLAGS_LONG_SUBCLASS;
     float_cls = new (0) BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(BoxedFloat), false,
                                        static_cast<BoxedString*>(boxString("float")));
+
     function_cls = new (0) BoxedHeapClass(object_cls, &functionGCHandler, offsetof(BoxedFunction, attrs),
                                           offsetof(BoxedFunction, in_weakreflist), sizeof(BoxedFunction), false,
                                           static_cast<BoxedString*>(boxString("function")));
+
     builtin_function_or_method_cls = new (0)
         BoxedHeapClass(object_cls, &functionGCHandler, 0, offsetof(BoxedBuiltinFunctionOrMethod, in_weakreflist),
                        sizeof(BoxedBuiltinFunctionOrMethod), false,
                        static_cast<BoxedString*>(boxString("builtin_function_or_method")));
+
     function_cls->tp_dealloc = builtin_function_or_method_cls->tp_dealloc = functionDtor;
     function_cls->has_safe_tp_dealloc = builtin_function_or_method_cls->has_safe_tp_dealloc = true;
 
 
     module_cls = new (0) BoxedHeapClass(object_cls, &BoxedModule::gcHandler, offsetof(BoxedModule, attrs), 0,
                                         sizeof(BoxedModule), false, static_cast<BoxedString*>(boxString("module")));
+
     member_descriptor_cls = new (0) BoxedHeapClass(object_cls, NULL, 0, 0, sizeof(BoxedMemberDescriptor), false,
                                                    static_cast<BoxedString*>(boxString("member_descriptor")));
+
     capifunc_cls = new (0) BoxedHeapClass(object_cls, BoxedCApiFunction::gcHandler, 0, 0, sizeof(BoxedCApiFunction),
                                           false, static_cast<BoxedString*>(boxString("capifunc")));
+
     method_cls = new (0)
         BoxedHeapClass(object_cls, BoxedMethodDescriptor::gcHandler, 0, 0, sizeof(BoxedMethodDescriptor), false,
                        static_cast<BoxedString*>(boxString("method")));
+
     wrapperobject_cls = new (0)
         BoxedHeapClass(object_cls, BoxedWrapperObject::gcHandler, 0, 0, sizeof(BoxedWrapperObject), false,
                        static_cast<BoxedString*>(boxString("method-wrapper")));
+
     wrapperdescr_cls = new (0)
         BoxedHeapClass(object_cls, BoxedWrapperDescriptor::gcHandler, 0, 0, sizeof(BoxedWrapperDescriptor), false,
                        static_cast<BoxedString*>(boxString("wrapper_descriptor")));
+
 
     EmptyString = new (0) BoxedString("");
     // Call InternInPlace rather than InternFromString since that will
@@ -3262,6 +3265,10 @@ void setupRuntime() {
 
     gc::registerPermanentRoot(True);
     gc::registerPermanentRoot(False);
+//    GC_TRACE_LOG("(types6 ) register root %p %p\n", &True, True);
+    gc::registerReferenceToPermanentRoot((void**)&True);
+//    GC_TRACE_LOG("(types 7) register root %p %p\n", &False, False);
+    gc::registerReferenceToPermanentRoot((void**)&False);
 
     // Need to initialize interned_ints early:
     setupInt();
@@ -3305,6 +3312,8 @@ void setupRuntime() {
     str_cls->tp_flags |= Py_TPFLAGS_HAVE_NEWBUFFER;
 
     dict_descr = new (pyston_getset_cls) BoxedGetsetDescriptor(typeSubDict, typeSubSetDict, NULL);
+//    GC_TRACE_LOG("(types 8) register root %p %p\n", &dict_descr, dict_descr);
+    gc::registerReferenceToPermanentRoot((void**)&dict_descr);
     gc::registerPermanentRoot(dict_descr);
     type_cls->giveAttr("__dict__", new (pyston_getset_cls) BoxedGetsetDescriptor(typeDict, NULL, NULL));
 

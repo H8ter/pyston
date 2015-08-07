@@ -103,15 +103,15 @@ namespace pyston {
                 visitor.visitPotentialRange((void *const *) e.first, (void *const *) e.second);
             }
 
-//            GC_TRACE_LOG("Looking at pending finalization list\n");
-//            for (auto box : pending_finalization_list) {
-//                visitor.visit(box);
-//            }
-//
-//            GC_TRACE_LOG("Looking at weakrefs needing callbacks list\n");
-//            for (auto weakref : weakrefs_needing_callback_list) {
-//                visitor.visit(weakref);
-//            }
+            GC_TRACE_LOG("Looking at pending finalization list\n");
+            for (auto box : pending_finalization_list) {
+                visitor.visit(box);
+            }
+
+            GC_TRACE_LOG("Looking at weakrefs needing callbacks list\n");
+            for (auto weakref : weakrefs_needing_callback_list) {
+                visitor.visit(weakref);
+            }
 
         }
 
@@ -340,3 +340,5 @@ std::unordered_set<BoxedClass*>         gc::GCBase::class_objects;
 std::unordered_set<void*>               gc::GCBase::roots;
 std::vector<std::pair<void*, void*>>    gc::GCBase::potential_root_ranges;
 std::unordered_set<void*>               gc::GCBase::nonheap_roots;
+
+std::unordered_set<void**>              gc::GCBase::ref_to_roots;

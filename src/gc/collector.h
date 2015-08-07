@@ -25,13 +25,13 @@
 namespace pyston {
 namespace gc {
 
-//#define TRACE_GC_MARKING 0
-//#if TRACE_GC_MARKING
-//extern FILE* trace_fp;
-//#define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)
-//#else
-//#define GC_TRACE_LOG(...)
-//#endif
+#define TRACE_GC_MARKING 0
+#if TRACE_GC_MARKING
+extern FILE* trace_fp;
+#define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)
+#else
+#define GC_TRACE_LOG(...)
+#endif
 
         static void* max_nonheap_root = 0;
         static void* min_nonheap_root = (void*)~0;
@@ -42,8 +42,10 @@ std::deque<PyWeakReference*>& weakrefs_needing_callback_list();
 // Mark this gc-allocated object as being a root, even if there are no visible references to it.
 // (Note: this marks the gc allocation itself, not the pointer that points to one.  For that, use
 // a GCRootHandle)
-void registerPermanentRoot(void* root_obj, bool allow_duplicates = false);
+void registerPermanentRoot(void*root_obj, bool allow_duplicates = false);
 void deregisterPermanentRoot(void* root_obj);
+
+void registerReferenceToPermanentRoot(void** ref_to_root);
 
 // Register an object that was not allocated through this collector, as a root for this collector.
 // The motivating usecase is statically-allocated PyTypeObject objects, which are full Python objects

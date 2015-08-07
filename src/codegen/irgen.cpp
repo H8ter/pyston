@@ -1020,6 +1020,8 @@ CompiledFunction* doCompile(CLFunction* clfunc, SourceInfo* source, ParamNames* 
 
     // Make sure that the instruction memory keeps the module object alive.
     // TODO: implement this for real
+//    GC_TRACE_LOG("(irgen) register root %p %p\n", &source->parent_module, source->parent_module);
+    gc::registerReferenceToPermanentRoot((void**)&source->parent_module);
     gc::registerPermanentRoot(source->parent_module, /* allow_duplicates= */ true);
 
     llvm::FunctionType* ft = llvm::FunctionType::get(cf->getReturnType()->llvmType(), llvm_arg_types, false /*vararg*/);

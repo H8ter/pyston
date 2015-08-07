@@ -24,7 +24,7 @@ namespace gc{
 
         virtual void runCollection() override;
 
-    private:
+//        virtual void *gc_alloc_root(size_t bytes, GCKind kind_id) override;
 
         void markPhase();
 

@@ -407,6 +407,8 @@ static PyMethodDef sys_methods[] = {
 
 void setupSys() {
     sys_modules_dict = new BoxedDict();
+//    GC_TRACE_LOG("(sys) register root %p %p\n", &sys_modules_dict, sys_modules_dict);
+    gc::registerReferenceToPermanentRoot((void**)&sys_modules_dict);
     gc::registerPermanentRoot(sys_modules_dict);
 
     // This is ok to call here because we've already created the sys_modules_dict
@@ -484,6 +486,7 @@ void setupSys() {
 
     sys_flags_cls = new (0) BoxedHeapClass(object_cls, BoxedSysFlags::gcHandler, 0, 0, sizeof(BoxedSysFlags), false,
                                            static_cast<BoxedString*>(boxString("flags")));
+
     sys_flags_cls->giveAttr("__new__",
                             new BoxedFunction(boxRTFunction((void*)BoxedSysFlags::__new__, UNKNOWN, 1, 0, true, true)));
 #define ADD(name)                                                                                                      \

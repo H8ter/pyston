@@ -14,8 +14,8 @@
 namespace pyston{
     namespace gc {
         MarkSweepGC::MarkSweepGC() {
-            //global_heap = new DefaultHeap();
-            global_heap = new LinearHeap(LARGE_ARENA_START);
+            global_heap = new DefaultHeap();
+//            global_heap = new LinearHeap(LARGE_ARENA_START);
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;
@@ -48,7 +48,6 @@ namespace pyston{
             should_not_reenter_gc = true; // begin non-reentrant section
 
             Timer _t("collecting", /*min_usec=*/10000);
-
 #if TRACE_GC_MARKING
 #if 1 // separate log file per collection
     char tracefn_buf[80];
@@ -58,7 +57,6 @@ namespace pyston{
     trace_fp = fopen("gc_trace.txt", "w");
 #endif
 #endif
-
             global_heap->prepareForCollection();
 
             // Finalizers might have been called since the last GC.
@@ -86,12 +84,10 @@ namespace pyston{
                 prepareWeakrefCallbacks(o);
                 global_heap->free(GCAllocation::fromUserData(o));
             }
-
 #if TRACE_GC_MARKING
     fclose(trace_fp);
     trace_fp = NULL;
 #endif
-
             should_not_reenter_gc = false; // end non-reentrant section
 
             global_heap->cleanupAfterCollection();
@@ -164,7 +160,6 @@ namespace pyston{
     fclose(trace_fp);
     trace_fp = NULL;
 #endif
-
 #ifndef NVALGRIND
     VALGRIND_ENABLE_ERROR_REPORTING;
 #endif
@@ -185,6 +180,9 @@ namespace pyston{
             sc_us.log(us);
         }
 
+//        void *MarkSweepGC::gc_alloc_root(size_t bytes, GCKind kind_id) {
+//            return this->gc_alloc(bytes, kind_id);
+//        }
     }
 }
 

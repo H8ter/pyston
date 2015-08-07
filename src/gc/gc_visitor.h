@@ -10,13 +10,13 @@
 namespace pyston {
 namespace gc {
 
-#define TRACE_GC_MARKING 1
-#if TRACE_GC_MARKING
-        extern FILE* trace_fp;
-#define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)
-#else
-#define GC_TRACE_LOG(...)
-#endif
+//#define TRACE_GC_MARKING 0
+//#if TRACE_GC_MARKING
+//        static FILE* trace_fp = fopen("gc_trace.txt", "w");
+//#define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)
+//#else
+//#define GC_TRACE_LOG(...)
+//#endif
 
     class TraceStack;
     class Heap;
