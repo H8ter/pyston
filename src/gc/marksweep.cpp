@@ -9,13 +9,15 @@
 #include "gc/heap.h"
 #include "gc/default_heap.h"
 
-#include "gc/semispace_heap.h"
+#include "gc/linear_heap.h"
+#include "gc/trace_stack.h"
 
 namespace pyston{
     namespace gc {
+
         MarkSweepGC::MarkSweepGC() {
-            //global_heap = new DefaultHeap();
-            global_heap = new SemiSpaceHeap(LARGE_ARENA_START);
+//            global_heap = new DefaultHeap();
+            global_heap = new LinearHeap(LARGE_ARENA_START);
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;
@@ -23,6 +25,7 @@ namespace pyston{
 
 
         void MarkSweepGC::runCollection() {
+            GC_TRACE_LOG("GC begin\n");
             //FILE *f = fopen("out.txt", "a");
             //fprintf(f, "hello from runCollection (Mark-and-Sweep GC class)\n");
             //fclose(f);
@@ -48,16 +51,6 @@ namespace pyston{
             should_not_reenter_gc = true; // begin non-reentrant section
 
             Timer _t("collecting", /*min_usec=*/10000);
-
-#if TRACE_GC_MARKING
-#if 1 // separate log file per collection
-    char tracefn_buf[80];
-    snprintf(tracefn_buf, sizeof(tracefn_buf), "gc_trace_%d.%03d.txt", getpid(), ncollections);
-    trace_fp = fopen(tracefn_buf, "w");
-#else // overwrite previous log file with each collection
-    trace_fp = fopen("gc_trace.txt", "w");
-#endif
-#endif
 
             global_heap->prepareForCollection();
 
@@ -87,11 +80,6 @@ namespace pyston{
                 global_heap->free(GCAllocation::fromUserData(o));
             }
 
-#if TRACE_GC_MARKING
-    fclose(trace_fp);
-    trace_fp = NULL;
-#endif
-
             should_not_reenter_gc = false; // end non-reentrant section
 
             global_heap->cleanupAfterCollection();
@@ -103,6 +91,7 @@ namespace pyston{
             sc_us.log(us);
 
             // dumpHeapStatistics();
+            GC_TRACE_LOG("GC end\n");
         }
 
         void MarkSweepGC::markPhase() {
@@ -159,11 +148,6 @@ namespace pyston{
             // memory. So we root objects whose finalizers need to be called by placing them in a
             // pending finalization list.
             orderFinalizers();
-
-#if TRACE_GC_MARKING
-    fclose(trace_fp);
-    trace_fp = NULL;
-#endif
 
 #ifndef NVALGRIND
     VALGRIND_ENABLE_ERROR_REPORTING;

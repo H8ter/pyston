@@ -25,6 +25,7 @@
 #include "core/types.h"
 #include "core/util.h"
 #include "gc/marksweep.h"
+#include "gc/semispace.h"
 #include "runtime/objmodel.h"
 #include "runtime/types.h"
 
@@ -35,11 +36,13 @@
 namespace pyston {
 namespace gc {
 
-    MarkSweepGC GC;
-
 #if TRACE_GC_MARKING
-FILE* trace_fp;
+        FILE* trace_fp = fopen("gc_trace.txt", "w");;
 #endif
+
+//HybridSemiSpaceGC GC;
+MarkSweepGC GC;
+
 
         std::deque<Box*>& pending_finalization_list() {
             return GC.pending_finalization_list;

@@ -21,6 +21,7 @@
 #include "gc/default_heap.h"
 
 #include "gc/marksweep.h"
+#include "gc/semispace.h"
 
 #ifndef NVALGRIND
 #include "valgrind.h"
@@ -34,6 +35,7 @@ namespace pyston {
 
 namespace gc {
 
+//extern HybridSemiSpaceGC GC;
 extern MarkSweepGC GC;
 
 #if STAT_ALLOCATIONS

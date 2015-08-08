@@ -3,117 +3,121 @@
 //
 
 #include "semispace_heap.h"
+#include "runtime/types.h"
+#include "runtime/objmodel.h"
 
 namespace pyston {
 namespace gc {
-        SemiSpaceHeap::SemiSpaceHeap(uintptr_t arena_start) {
-//            fromspace = new Arena<ARENA_SIZE, initial_map_size, increment>(SMALL_ARENA_START);
-//            tospace   = new Arena<ARENA_SIZE, initial_map_size, increment>(LARGE_ARENA_START);
-            tospace   = new SSArena(arena_start);
-        }
 
-        SemiSpaceHeap::~SemiSpaceHeap() {
-            delete tospace;
-        }
+    SemiSpaceHeap::SemiSpaceHeap() {
+        tospace = new LinearHeap(LARGE_ARENA_START, false);
+        fromspace = new LinearHeap(SMALL_ARENA_START, false);
+        rootspace = new LinearHeap(HUGE_ARENA_START, false); // or true???
 
-        GCAllocation *SemiSpaceHeap::alloc(size_t bytes) {
-            registerGCManagedBytes(bytes);
+        spaces.push_back(tospace);
+        spaces.push_back(fromspace);
+        spaces.push_back(rootspace);
 
-            Obj* obj = _alloc(bytes + sizeof(GCAllocation) + sizeof(Obj));
-            obj->size = bytes;
+        sp = true;
 
-            return obj->data;
-        }
+        foo = [this] (GCAllocation* al, heapAction action) {
+            for(auto s : this->spaces)
+                if (s->arena->contains(al->user_data))
+                    (s->*action)(al);
+        };
+        alloc_root = true; // all allocations in rootspace
+    }
 
-        SemiSpaceHeap::Obj* SemiSpaceHeap::_alloc(size_t size) {
-            obj.push_back(tospace->cur);
-            obj_set.insert(tospace->cur);
+    SemiSpaceHeap::~SemiSpaceHeap() {
+        for(int i = 0; i < spaces.size(); i++)
+            delete spaces[i];
+    }
 
-            //void* old_frontier = tospace->frontier;
+    GCAllocation *SemiSpaceHeap::alloc(size_t bytes) {
+        GC_TRACE_LOG("%s alloc begin %d\n", alloc_root ? "root" : "non-r",(int)bytes);
+        registerGCManagedBytes(bytes);
 
-            void* obj = tospace->allocFromArena(size);
+        LOCK_REGION(lock);
 
-// TODO: сделать extend во время GC
+        GCAllocation* p;
 
-            /*if ((uint8_t*)old_frontier < (uint8_t*)tospace->frontier) {
-                size_t grow_size = (size + increment - 1) & ~(increment - 1);
-                fromspace->extendMapping(grow_size);
-            }*/
+        LinearHeap* space = alloc_root ? rootspace : tospace;
 
-            return (Obj*)obj;
-        }
+        p = space->alloc(bytes);
 
-        GCAllocation *SemiSpaceHeap::realloc(GCAllocation *al, size_t bytes) {
-            Obj* o = Obj::fromAllocation(al);
-            size_t size = o->size;
-            if (size >= bytes && size < bytes * 2)
-                return al;
+        GC_TRACE_LOG("%p | %p | %p | %p | %d\n", (char *) space->arena->arena_start,
+                     (char *) space->arena->frontier, (char *) space->arena->cur, p,
+                     (sp ? 1 : 0));
+                ASSERT(p < space->arena->frontier, "Panic! May not alloc beyound the heap!");
 
-            GCAllocation* rtn = alloc(bytes);
-            memcpy(rtn, al, std::min(bytes, size));
+        GC_TRACE_LOG("alloc end\n");
 
-            void *p = Obj::fromAllocation(al);
-            auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            obj_set.erase(*it);
+        return p;
+    }
 
-            return rtn;
-        }
+    GCAllocation *SemiSpaceHeap::realloc(GCAllocation *alloc, size_t bytes) {
+        GC_TRACE_LOG("realloc %p %d\n", alloc, (int)bytes);
 
-        void SemiSpaceHeap::destructContents(GCAllocation *alloc) {
-            _doFree(alloc, NULL);
-        }
+        for(auto s : spaces)
+            if (s->arena->contains(alloc->user_data))
+                return s->realloc(alloc, bytes);
 
-        void SemiSpaceHeap::free(GCAllocation *alloc) {
-            destructContents(alloc);
+        return NULL;
+    }
 
-            void *p = Obj::fromAllocation(alloc);
-            auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            obj_set.erase(*it);
-        }
+    void SemiSpaceHeap::destructContents(GCAllocation *alloc) {
+        GC_TRACE_LOG("destructContents %p\n", alloc);
 
-        GCAllocation *SemiSpaceHeap::getAllocationFromInteriorPointer(void *ptr) {
-            if (!tospace->contains(ptr))
-                return NULL;
+        foo(alloc, &LinearHeap::destructContents);
+    }
 
-            //return ((Obj*)ptr)->data;                     // FAILED
-            //return GCAllocation::fromUserData(ptr);       // FAILED
+    void SemiSpaceHeap::free(GCAllocation *alloc) {
+        GC_TRACE_LOG("free %p\n", alloc);
 
-            auto it = std::lower_bound(obj.begin(), obj.end(), ptr);
+        foo(alloc, &LinearHeap::free);
+    }
 
-            if (it == obj.end() || *it > ptr) --it;
+    GCAllocation *SemiSpaceHeap::getAllocationFromInteriorPointer(void *ptr) {
+        for(auto s : spaces)
+            if (s->arena->contains(ptr))
+                return s->getAllocationFromInteriorPointer(ptr);
 
-            return reinterpret_cast<Obj*>(*it)->data;
-        }
+        return NULL;
+    }
 
-        void SemiSpaceHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
-            for (auto p = obj.begin(); p != obj.end(); ++p) {
-                if (!obj_set.count(*p)) {
-                    continue;
-                }
+    /*
+        WARNING: it's safe to use only after prepareForCollection
+    */
+    void SemiSpaceHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
+        fromspace->freeUnmarked(weakly_referenced);
+    }
 
-                GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;
-                clearOrderingState(al);
-                if(isMarked(al)) {
-                    clearMark(al);
-                }
-                else {
-                    if (_doFree(al, &weakly_referenced))
-                        obj_set.erase(*p);
-                }
-            }
-        }
+    void SemiSpaceHeap::prepareForCollection() {
+        GC_TRACE_LOG("GC begin\n");
 
-        void SemiSpaceHeap::prepareForCollection() {
+        std::swap(tospace, fromspace);
+        std::swap(spaces[0], spaces[1]);
+        disableGC();
 
-        }
+        sp = !sp;
+    }
 
-        void SemiSpaceHeap::cleanupAfterCollection() {
-            obj.clear();
-            std::copy(obj_set.begin(), obj_set.end(), std::back_inserter(obj));
-        }
+    void SemiSpaceHeap::cleanupAfterCollection() {
+        GC_TRACE_LOG("GC end\n");
 
-        void SemiSpaceHeap::dumpHeapStatistics(int level) {
+        for(auto s : spaces)
+            s->clearMark();
 
-        }
+        fromspace->clear();
+        // TODO: update rootspace's free-pointer
+
+        bytesAllocatedSinceCollection = 0;
+        enableGC();
+    }
+
+    void SemiSpaceHeap::dumpHeapStatistics(int level) {
+
+    }
+
 } // namespace gc
 } // namespace pyston

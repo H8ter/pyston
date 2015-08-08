@@ -7,78 +7,55 @@
 
 
 
-#include "heap.h"
-#include <algorithm>
-#include <vector>
-#include <set>
+#include "gc/linear_heap.h"
+#include <functional>
 
 namespace pyston {
 namespace gc {
 
-        class SemiSpaceGC;
+    class SemiSpaceGC;
 
-        class SemiSpaceHeap : public Heap {
-        private:
-            static const uintptr_t increment = 16 * 1024 * 1024;
-            static const uintptr_t initial_map_size = 64 * 1024 * 1024;
+    class SemiSpaceHeap : public Heap {
+    public:
+        friend class SemiSpaceGC;
+        friend class HybridSemiSpaceGC;
 
-            class SSArena : public Arena<ARENA_SIZE, initial_map_size, increment> {
-            public:
-                SSArena(uintptr_t arena_start) : Arena(arena_start) { }
-            };
+        SemiSpaceHeap();
 
-            //using SemiSpace = Arena<ARENA_SIZE, initial_map_size, increment>;
-            using SemiSpace = SSArena;
+        virtual ~SemiSpaceHeap();
 
-            SemiSpace* tospace;
+        virtual GCAllocation *alloc(size_t bytes) override;
 
-            struct Obj {
-                size_t size;
-                Obj* forward;
-                GCAllocation data[0];
+        virtual GCAllocation *realloc(GCAllocation *alloc, size_t bytes) override;
 
-                Obj() {
-                    forward = nullptr;
-                }
+        virtual void destructContents(GCAllocation *alloc) override;
 
-                static Obj* fromAllocation(GCAllocation* alloc) {
-                    char* rtn = (char*)alloc - offsetof(Obj, data);
-                    return reinterpret_cast<Obj*>(rtn);
-                }
-            };
+        virtual void free(GCAllocation *alloc) override;
 
-            std::vector<void*> obj;
-            std::set<void*> obj_set;
+        virtual GCAllocation *getAllocationFromInteriorPointer(void *ptr) override;
 
-        public:
-            friend class SemiSpaceGC;
+        virtual void freeUnmarked(std::vector<Box *> &weakly_referenced) override;
 
-            SemiSpaceHeap(uintptr_t arena_start);
+        virtual void prepareForCollection() override;
 
-            virtual ~SemiSpaceHeap();
+        virtual void cleanupAfterCollection() override;
 
-            virtual GCAllocation *alloc(size_t bytes) override;
+        virtual void dumpHeapStatistics(int level) override;
 
-            virtual GCAllocation *realloc(GCAllocation *alloc, size_t bytes) override;
+    private:
 
-            virtual void destructContents(GCAllocation *alloc) override;
+        LinearHeap * tospace;
+        LinearHeap * fromspace;
+        LinearHeap * rootspace;
 
-            virtual void free(GCAllocation *alloc) override;
+        std::vector<LinearHeap*> spaces;
 
-            virtual GCAllocation *getAllocationFromInteriorPointer(void *ptr) override;
+        typedef void (LinearHeap::* heapAction)(GCAllocation*);
+        std::function<void(GCAllocation*, heapAction)> foo;
 
-            virtual void freeUnmarked(std::vector<Box *> &weakly_referenced) override;
-
-            virtual void prepareForCollection() override;
-
-            virtual void cleanupAfterCollection() override;
-
-            virtual void dumpHeapStatistics(int level) override;
-
-        private:
-
-            Obj* _alloc(size_t size);
-        };
+        volatile char sp;
+        volatile char alloc_root;
+    };
 
 }
 }
