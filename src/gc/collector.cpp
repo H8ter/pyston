@@ -44,13 +44,13 @@ namespace gc {
 MarkSweepGC GC;
 
 
-        std::deque<Box*>& pending_finalization_list() {
-            return GC.pending_finalization_list;
-        }
+std::deque<Box*>& pending_finalization_list() {
+    return GC.pending_finalization_list;
+}
 
-        std::deque<PyWeakReference*>& weakrefs_needing_callback_list() {
-            return GC.weakrefs_needing_callback_list;
-        }
+std::deque<PyWeakReference*>& weakrefs_needing_callback_list() {
+    return GC.weakrefs_needing_callback_list;
+}
 
 // Track the highest-addressed nonheap root; the assumption is that the nonheap roots will
 // typically all have lower addresses than the heap roots, so this can serve as a cheap

@@ -19,10 +19,8 @@ namespace pyston {
 
         class LinearHeap : public Heap {
         private:
-            static const uintptr_t increment = 16 * 1024 * 1024;
-            static const uintptr_t initial_map_size = 64 * 1024 * 1024;
 
-            using SemiSpace = Arena<ARENA_SIZE, initial_map_size, increment>;
+            using SemiSpace = Arena;
 
             SemiSpace* const arena;
 
@@ -57,9 +55,15 @@ namespace pyston {
             friend class HybridSemiSpaceGC;
             friend class SemiSpaceHeap;
 
-            LinearHeap(uintptr_t arena_start, bool alloc_register = true);
+            friend class BartlettGC;
+
+            LinearHeap(uintptr_t arena_start, uintptr_t arena_size,
+                       uintptr_t initial_map_size, uintptr_t increment,
+                       bool alloc_register = true);
 
             virtual ~LinearHeap();
+
+            bool fit(size_t bytes);
 
             virtual GCAllocation *alloc(size_t bytes) override;
 

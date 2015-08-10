@@ -158,15 +158,22 @@ bool isWeaklyReferenced(Box* b);
 
 #define PAGE_SIZE 4096
 
-template <uintptr_t arena_size, uintptr_t initial_mapsize, uintptr_t increment> class Arena {
+class Arena {
 public:
     uintptr_t arena_start;
+    uintptr_t arena_size;
+    uintptr_t initial_mapsize;
+    uintptr_t increment;
 
     void* cur;
     void* frontier;
     void* arena_end;
 
-    Arena(uintptr_t arena_start) : arena_start(arena_start), cur((void*)arena_start), frontier((void*)arena_start), arena_end((void*)(arena_start + arena_size)) {
+    Arena(uintptr_t arena_start, uintptr_t arena_size, uintptr_t initial_mapsize, uintptr_t increment) :
+            arena_start(arena_start), arena_size(arena_size),
+            initial_mapsize(initial_mapsize), increment(increment),
+            cur((void*)arena_start), frontier((void*)arena_start), arena_end((void*)(arena_start + arena_size))
+    {
         if (initial_mapsize)
             extendMapping(initial_mapsize);
     }
@@ -175,7 +182,7 @@ public:
     void extendMapping(size_t size) {
         assert(size % PAGE_SIZE == 0);
 
-        assert(((uint8_t*)frontier + size) < arena_end && "arena full");
+        assert(fit(size) && "arena full");
 
         void* mrtn = mmap(frontier, size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         RELEASE_ASSERT((uintptr_t)mrtn != -1, "failed to allocate memory from OS");
@@ -199,6 +206,7 @@ public:
         return rtn;
     }
 
+    bool fit(size_t size) { return ((uint8_t*)frontier + size) < arena_end; }
 
     bool contains(void* addr) { return (void*)arena_start <= addr && addr < cur; }
 };
@@ -207,6 +215,9 @@ constexpr uintptr_t ARENA_SIZE = 0x1000000000L;
 constexpr uintptr_t SMALL_ARENA_START = 0x1270000000L;
 constexpr uintptr_t LARGE_ARENA_START = 0x2270000000L;
 constexpr uintptr_t HUGE_ARENA_START = 0x3270000000L;
+
+constexpr uintptr_t INCREMENT = 16 * 1024 * 1024;
+constexpr uintptr_t INITIAL_MAP_SIZE = 64 * 1024 * 1024;
 
 bool _doFree(GCAllocation* al, std::vector<Box*>* weakly_referenced);
 

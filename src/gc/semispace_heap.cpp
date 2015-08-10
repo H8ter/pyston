@@ -10,9 +10,9 @@ namespace pyston {
 namespace gc {
 
     SemiSpaceHeap::SemiSpaceHeap() {
-        tospace = new LinearHeap(LARGE_ARENA_START, false);
-        fromspace = new LinearHeap(SMALL_ARENA_START, false);
-        rootspace = new LinearHeap(HUGE_ARENA_START, false); // or true???
+        tospace = new LinearHeap(LARGE_ARENA_START, INITIAL_MAP_SIZE, INCREMENT, false);
+        fromspace = new LinearHeap(SMALL_ARENA_START, INITIAL_MAP_SIZE, INCREMENT,  false);
+        rootspace = new LinearHeap(HUGE_ARENA_START, INITIAL_MAP_SIZE, INCREMENT,  false); // or true???
 
         spaces.push_back(tospace);
         spaces.push_back(fromspace);

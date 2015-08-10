@@ -183,7 +183,7 @@ namespace gc{
                 {
 
                     GC_TRACE_LOG("%p %p %p---------------------------------------\n", parent, P, f_addr);
-
+                    // interior pointer PROBLEM (see notes)
                     while (*addr != P)
                         ++addr;
 

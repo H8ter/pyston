@@ -85,9 +85,11 @@ namespace pyston {
 
         class DefaultHeap;
 
-        class SmallArena : public Arena<ARENA_SIZE, 64 * 1024 * 1024, 16 * 1024 * 1024> {
+        class SmallArena : public Arena {
         public:
-            SmallArena(Heap* heap) : Arena(SMALL_ARENA_START), heap(heap), thread_caches(heap, this) {
+            SmallArena(Heap* heap) : Arena(SMALL_ARENA_START, ARENA_SIZE, 64 * 1024 * 1024, 16 * 1024 * 1024),
+                                     heap(heap), thread_caches(heap, this)
+            {
 #ifndef NDEBUG
                 // Various things will crash if we instantiate multiple Heaps/Arenas
                 static bool already_created = false;
@@ -274,7 +276,7 @@ namespace pyston {
 //
 // Blocks of 1meg are mmap'ed individually, and carved up as needed.
 //
-        class LargeArena : public Arena<ARENA_SIZE, 32 * 1024 * 1024, 16 * 1024 * 1024> {
+        class LargeArena : public Arena {
         private:
             struct LargeBlock {
                 LargeBlock* next;
@@ -323,7 +325,8 @@ namespace pyston {
             void _freeLargeObj(LargeObj* obj);
 
         public:
-            LargeArena(Heap* heap) : Arena(LARGE_ARENA_START), heap(heap), head(NULL), blocks(NULL) {}
+            LargeArena(Heap* heap) : Arena(LARGE_ARENA_START, ARENA_SIZE, 32 * 1024 * 1024, 16 * 1024 * 1024),
+                                     heap(heap), head(NULL), blocks(NULL) {}
 
             /* Largest object that can be allocated in a large block. */
             static constexpr size_t ALLOC_SIZE_LIMIT = BLOCK_SIZE - CHUNK_SIZE - sizeof(LargeObj);
@@ -345,9 +348,9 @@ namespace pyston {
 //
 // Objects are allocated with individual mmap() calls, and kept in a
 // linked list.  They are not reused.
-        class HugeArena : public Arena<ARENA_SIZE, 0, PAGE_SIZE> {
+        class HugeArena : public Arena {
         public:
-            HugeArena(Heap* heap) : Arena(HUGE_ARENA_START), heap(heap) {}
+            HugeArena(Heap* heap) : Arena(HUGE_ARENA_START, ARENA_SIZE, 0, PAGE_SIZE), heap(heap) {}
 
             GCAllocation* __attribute__((__malloc__)) alloc(size_t bytes);
             GCAllocation* realloc(GCAllocation* alloc, size_t bytes);

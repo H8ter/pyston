@@ -8,14 +8,20 @@
 
 namespace pyston {
     namespace gc {
-        LinearHeap::LinearHeap(uintptr_t arena_start, bool alloc_register)
-                : arena(new Arena<ARENA_SIZE, initial_map_size, increment>(arena_start)),
+        LinearHeap::LinearHeap(uintptr_t arena_start, uintptr_t arena_size,
+                               uintptr_t initial_map_size, uintptr_t increment,
+                               bool alloc_register)
+                : arena(new Arena(arena_start, arena_size, initial_map_size, increment)),
                   alloc_register(alloc_register)
         {
         }
 
         LinearHeap::~LinearHeap() {
             delete arena;
+        }
+
+        bool LinearHeap::fit(size_t bytes) {
+            return arena->fit(bytes);
         }
 
         GCAllocation *LinearHeap::alloc(size_t bytes) {
@@ -73,9 +79,6 @@ namespace pyston {
         GCAllocation *LinearHeap::getAllocationFromInteriorPointer(void *ptr) {
             if (!arena->contains(ptr))
                 return NULL;
-
-            //return ((Obj*)ptr)->data;                     // FAILED
-            //return GCAllocation::fromUserData(ptr);       // FAILED
 
             auto it = std::lower_bound(obj.begin(), obj.end(), ptr);
 
