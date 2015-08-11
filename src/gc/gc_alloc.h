@@ -22,6 +22,7 @@
 
 #include "gc/marksweep.h"
 #include "gc/semispace.h"
+#include "gc/bartlett.h"
 
 #ifndef NVALGRIND
 #include "valgrind.h"
@@ -35,8 +36,8 @@ namespace pyston {
 
 namespace gc {
 
-//extern HybridSemiSpaceGC GC;
-extern MarkSweepGC GC;
+//extern MarkSweepGC GC;
+extern BartlettGC GC;
 
 #if STAT_ALLOCATIONS
 static StatCounter gc_alloc_bytes("gc_alloc_bytes");

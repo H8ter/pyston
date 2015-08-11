@@ -21,7 +21,7 @@ namespace gc {
         blocks.resize(blocks_cnt);
         block_start.resize(blocks_cnt);
         for(int i = 0; i < blocks_cnt; i++, arena_start += block_size) {
-            blocks[i].h     = new LinearHeap(arena_start, block_size, initial_map_size, increment, false);
+            blocks[i].h     = new LinearHeap(arena_start, block_size, initial_map_size, increment, true);
             blocks[i].id    = 0;
             block_start[i]  = arena_start;
         }
@@ -44,7 +44,7 @@ namespace gc {
         memory allocation in specific space
     */
     GCAllocation *BartlettHeap::_alloc(size_t bytes, int space) {
-        registerGCManagedBytes(bytes);
+//        registerGCManagedBytes(bytes);
 
         // slow implementation
         for(int i = 0; i < blocks_cnt; i++) {
@@ -117,13 +117,33 @@ namespace gc {
         nxt_space = cur_space + 1;                      // necessary for Bartlett's GC
 //        for testing only (not with make check)
 //        fprintf(stderr, "%d\n", allocated_blocks);
+        GC_TRACE_LOG("%d\n", allocated_blocks);
     }
 
     void BartlettHeap::cleanupAfterCollection() {
+//         на данный момент сохранена информация обо всех объектах
         for(int i = 0; i < blocks_cnt; i++) {
             Block &b = blocks[i];
             b.h->cleanupAfterCollection();
+
+//            if (b.id == cur_space) {
+//                b.h->obj.clear();
+//                b.h->obj_set.clear();
+//            }
         }
+
+//#if TRACE_GC_MARKING
+//        for(int i = 0; i < blocks_cnt; i++) {
+//            Block &b = blocks[i];
+//            if (b.id == cur_space) {
+//                //RELEASE_ASSERT(b.h->obj_set.size() == 0, "cleanup error\n");
+//                int marked = 0;
+//                for(auto p : b.h->obj_set)
+//                    marked += isMarked(reinterpret_cast<LinearHeap::Obj*>(p)->data);
+//                fprintf(stderr, "marked %d total %d\n", marked, (int)b.h->obj_set.size());
+//            }
+//        }
+//#endif
 
         cur_space = nxt_space;                          // necessary for Bartlett's GC
 

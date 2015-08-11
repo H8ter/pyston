@@ -49,7 +49,6 @@ namespace pyston {
         }
 
         GCAllocation *LinearHeap::realloc(GCAllocation *al, size_t bytes) {
-            // memory leak???
             Obj* o = Obj::fromAllocation(al);
             size_t size = o->size;
             if (size >= bytes && size < bytes * 2)

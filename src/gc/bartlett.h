@@ -25,7 +25,7 @@ namespace gc {
 
     private:
 
-        void gc();
+        void gc(GCVisitor &visitor, TraceStack &stack);
 
         void promote(BartlettHeap::Block* b);
 
@@ -39,11 +39,13 @@ namespace gc {
 
         bool isValidPointer(void* p);
 
-        std::queue<BartlettHeap::Block*> tospace_queue;
-
-        std::vector<char> block_used;
+        std::queue<void*> tospace_queue;
 
         BartlettHeap* gh;
+
+        // for testting
+        int root_blocks;
+        int move_cnt;
     };
 
 }

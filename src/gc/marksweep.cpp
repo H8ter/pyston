@@ -18,8 +18,8 @@ namespace pyston{
 
         MarkSweepGC::MarkSweepGC() {
 //            global_heap = new DefaultHeap();
-//            global_heap = new LinearHeap(LARGE_ARENA_START, ARENA_SIZE, INITIAL_MAP_SIZE, INCREMENT);
-            global_heap = new BartlettHeap(SMALL_ARENA_START, ARENA_SIZE);
+            global_heap = new LinearHeap(LARGE_ARENA_START, ARENA_SIZE, INITIAL_MAP_SIZE, INCREMENT);
+//            global_heap = new BartlettHeap(SMALL_ARENA_START, ARENA_SIZE);
             gc_enabled = true;
             should_not_reenter_gc = false;
             ncollections = 0;
