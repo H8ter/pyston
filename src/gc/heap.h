@@ -182,7 +182,7 @@ public:
     void extendMapping(size_t size) {
         assert(size % PAGE_SIZE == 0);
 
-        assert(fit(size) && "arena full");
+        assert(((uint8_t*)frontier + size) < arena_end && "arena full");
 
         void* mrtn = mmap(frontier, size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         RELEASE_ASSERT((uintptr_t)mrtn != -1, "failed to allocate memory from OS");
@@ -206,7 +206,14 @@ public:
         return rtn;
     }
 
-    bool fit(size_t size) { return ((uint8_t*)frontier + size) < arena_end; }
+    bool fit(size_t size) {
+        if (((char*)cur + size) < (char*)frontier) return true;
+        else {
+            size_t grow_size = (size + increment - 1) & ~(increment - 1);
+            return ((uint8_t*)frontier + grow_size) < arena_end;
+        }
+
+    }
 
     bool contains(void* addr) { return (void*)arena_start <= addr && addr < cur; }
 };

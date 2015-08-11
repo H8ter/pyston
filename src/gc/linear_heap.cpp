@@ -21,7 +21,7 @@ namespace pyston {
         }
 
         bool LinearHeap::fit(size_t bytes) {
-            return arena->fit(bytes);
+            return arena->fit(bytes + sizeof(GCAllocation) + sizeof(Obj));
         }
 
         GCAllocation *LinearHeap::alloc(size_t bytes) {
@@ -49,6 +49,7 @@ namespace pyston {
         }
 
         GCAllocation *LinearHeap::realloc(GCAllocation *al, size_t bytes) {
+            // memory leak???
             Obj* o = Obj::fromAllocation(al);
             size_t size = o->size;
             if (size >= bytes && size < bytes * 2)
@@ -57,11 +58,19 @@ namespace pyston {
             GCAllocation* rtn = alloc(bytes);
             memcpy(rtn, al, std::min(bytes, size));
 
-            void *p = Obj::fromAllocation(al);
-            auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            obj_set.erase(*it);
+            _erase_from_obj_set(al);
 
             return rtn;
+        }
+
+
+        void LinearHeap::realloc(LinearHeap* lhs, LinearHeap* rhs,
+                                 GCAllocation* from, GCAllocation* to,
+                                 size_t bytes)
+        {
+            memcpy(to, from, bytes);
+
+            lhs->_erase_from_obj_set(from);
         }
 
         void LinearHeap::destructContents(GCAllocation *alloc) {
@@ -71,9 +80,7 @@ namespace pyston {
         void LinearHeap::free(GCAllocation *alloc) {
             destructContents(alloc);
 
-            void *p = Obj::fromAllocation(alloc);
-            auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            obj_set.erase(*it);
+            _erase_from_obj_set(alloc);
         }
 
         GCAllocation *LinearHeap::getAllocationFromInteriorPointer(void *ptr) {
@@ -130,6 +137,12 @@ namespace pyston {
                 if (isMarked(al))
                     ::pyston::gc::clearMark(al);
             }
+        }
+
+        void LinearHeap::_erase_from_obj_set(GCAllocation *al) {
+            void *p = Obj::fromAllocation(al);
+            auto it = std::lower_bound(obj.begin(), obj.end(), p);
+            obj_set.erase(*it);
         }
     } // namespace gc
 } // namespace pyston

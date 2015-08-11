@@ -55,6 +55,7 @@ namespace pyston {
             friend class HybridSemiSpaceGC;
             friend class SemiSpaceHeap;
 
+            friend class BartlettHeap;
             friend class BartlettGC;
 
             LinearHeap(uintptr_t arena_start, uintptr_t arena_size,
@@ -68,6 +69,8 @@ namespace pyston {
             virtual GCAllocation *alloc(size_t bytes) override;
 
             virtual GCAllocation *realloc(GCAllocation *alloc, size_t bytes) override;
+
+            static void realloc(LinearHeap* lhs, LinearHeap* rhs, GCAllocation* from, GCAllocation* to, size_t bytes);
 
             virtual void destructContents(GCAllocation *alloc) override;
 
@@ -90,6 +93,8 @@ namespace pyston {
         private:
 
             Obj* _alloc(size_t size);
+
+            void _erase_from_obj_set(GCAllocation *al);
         };
 
     }

@@ -21,7 +21,7 @@ namespace gc {
         blocks.resize(blocks_cnt);
         block_start.resize(blocks_cnt);
         for(int i = 0; i < blocks_cnt; i++, arena_start += block_size) {
-            blocks[i].h     = new LinearHeap(arena_start, block_size, initial_map_size, increment, true);
+            blocks[i].h     = new LinearHeap(arena_start, block_size, initial_map_size, increment, false);
             blocks[i].id    = 0;
             block_start[i]  = arena_start;
         }
@@ -44,10 +44,15 @@ namespace gc {
         memory allocation in specific space
     */
     GCAllocation *BartlettHeap::_alloc(size_t bytes, int space) {
+        registerGCManagedBytes(bytes);
+
         // slow implementation
         for(int i = 0; i < blocks_cnt; i++) {
             Block& b = blocks[i];
-            if (b.h->fit(bytes) && b.id == space) return b.h->alloc(bytes);
+            if (b.h->fit(bytes) && b.id == space) {
+                heap_id = i;
+                return b.h->alloc(bytes);
+            }
         }
 
         for(int i = 0; i < blocks_cnt; i++) {
@@ -56,6 +61,7 @@ namespace gc {
             if (b.h->fit(bytes) && is_free(b.id)) {
                 b.id = nxt_space;
                 allocated_blocks++;
+                heap_id = i;
                 return b.h->alloc(bytes);
             }
         }
@@ -67,12 +73,21 @@ namespace gc {
     }
 
     GCAllocation *BartlettHeap::realloc(GCAllocation *alloc, size_t bytes) {
-        // could cause error (fitting problem, location problem)
+        // could cause error (location problem)
 
-        if (valid_pointer(alloc))
-            return block(alloc).h->realloc(alloc, bytes);
-        else
-            return alloc;
+        if(!valid_pointer(alloc)) return alloc;
+
+        Block &b = block(alloc);
+        if(!b.h->fit(bytes)) {
+            GCAllocation* dest = BartlettHeap::alloc(bytes);
+            LinearHeap::realloc(
+                    b.h, blocks[heap_id].h, alloc, dest,
+                    std::min(bytes, LinearHeap::Obj::fromAllocation(alloc)->size)
+            );
+            return dest;
+        }
+        else return b.h->realloc(alloc, bytes);
+
     }
 
     void BartlettHeap::destructContents(GCAllocation *alloc) {
@@ -99,7 +114,7 @@ namespace gc {
 
     void BartlettHeap::prepareForCollection() {
         disableGC();
-        nxt_space = cur_space + 1;
+        nxt_space = cur_space + 1;                      // necessary for Bartlett's GC
 //        for testing only (not with make check)
 //        fprintf(stderr, "%d\n", allocated_blocks);
     }
@@ -110,7 +125,7 @@ namespace gc {
             b.h->cleanupAfterCollection();
         }
 
-        cur_space = nxt_space;
+        cur_space = nxt_space;                          // necessary for Bartlett's GC
 
         bytesAllocatedSinceCollection = 0;
         enableGC();

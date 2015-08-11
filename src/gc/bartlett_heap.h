@@ -55,7 +55,7 @@ namespace gc {
 
         bool valid_pointer(void* p);
 
-        const int blocks_cnt = 32;      // should be power of 2
+        const int blocks_cnt = 512;      // should be power of 2
         const uintptr_t block_size;
 
         std::vector<Block> blocks;
@@ -65,6 +65,7 @@ namespace gc {
         int nxt_space;
 
         int allocated_blocks;
+        int heap_id;
     };
 }
 }
