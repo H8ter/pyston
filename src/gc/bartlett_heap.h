@@ -46,6 +46,10 @@ namespace gc {
         struct Block {
             LinearHeap *h;
             int id;
+
+            Block() {}
+            Block(uintptr_t arena_start, uintptr_t block_size,
+                  uintptr_t initial_map_size, uintptr_t increment);
         };
 
         Block& block(void* p);
@@ -56,11 +60,17 @@ namespace gc {
 
         bool valid_pointer(void* p);
 
-        const int blocks_cnt = 1024;      // should be power of 2
+        Block& alloc_block();
+
+        const int max_blocks_cnt = 1024;      // should be power of 2
         const uintptr_t block_size;
+        uintptr_t initial_map_size;
+        uintptr_t increment;
 
         std::vector<Block> blocks;
-        std::vector<uintptr_t> block_start;
+        uintptr_t arena_start;
+        uintptr_t arena_size;
+        uintptr_t frontier;
 
         int cur_space;
         int nxt_space;

@@ -79,7 +79,7 @@ namespace gc {
 #if TRACE_GC_MARKING
         int active_blocks = 0;
         int free_blocks = 0;
-        for(int i = 0; i < gh->blocks_cnt; i++) {
+        for(int i = 0; i < gh->blocks.size(); i++) {
             active_blocks += gh->blocks[i].id == gh->cur_space;
             free_blocks += gh->is_free(gh->blocks[i].id );
         }
@@ -133,16 +133,17 @@ namespace gc {
         visitByGCKind(data, visitor);
 
         while(void* child = stack.pop()) {
-#if TRACE_GC_MARKING
+
             int b_id = gh->block(child).id;
 
             if(!(b_id == gh->cur_space || b_id == gh->nxt_space)) {
+#if TRACE_GC_MARKING
                 fprintf(stderr, "b_id %d cur %d child %p\n", b_id, gh->cur_space, child);
                 showObjectFromData(stderr, data);
                 fprintf(stderr, "forward %p\n", LinearHeap::Obj::fromUserData(child)->forward);
+#endif
                 RELEASE_ASSERT(false, "bad ref\n");
             }
-#endif
             copy(LinearHeap::Obj::fromUserData(child));
         }
     }

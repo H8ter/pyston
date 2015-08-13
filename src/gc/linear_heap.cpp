@@ -86,6 +86,13 @@ namespace pyston {
             if (!arena->contains(ptr))
                 return NULL;
 
+//            auto it = std::lower_bound(obj_set.begin(), obj_set.end(), ptr);
+//
+//            if (it == obj_set.begin() && *it > ptr) return NULL;
+//
+//            if (it == obj_set.end() || *it > ptr) --it;
+
+
             auto it = std::lower_bound(obj.begin(), obj.end(), ptr);
 
             if (it == obj.begin() && *it > ptr) return NULL;
@@ -100,6 +107,20 @@ namespace pyston {
         }
 
         void LinearHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
+//            for(auto p = obj_set.begin(); p != obj_set.end();) {
+//                GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;
+//                clearOrderingState(al);
+//
+//                if(isMarked(al)) {
+//                    ::pyston::gc::clearMark(al);
+//                    ++p;
+//                }
+//                else {
+//                    if (_doFree(al, &weakly_referenced))
+//                        p = obj_set.erase(p);
+//                }
+//            }
+
             for (auto p = obj.begin(); p != obj.end(); ++p) {
                 if (!obj_set.count(*p)) {
                     continue;
@@ -146,6 +167,8 @@ namespace pyston {
 
         void LinearHeap::_erase_from_obj_set(GCAllocation *al) {
             void *p = Obj::fromAllocation(al);
+//            auto it = std::lower_bound(obj_set.begin(), obj_set.end(), p);
+//            obj_set.erase(it);
             auto it = std::lower_bound(obj.begin(), obj.end(), p);
             obj_set.erase(*it);
         }
