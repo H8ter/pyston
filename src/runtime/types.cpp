@@ -134,7 +134,7 @@ extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems)
     }
 #endif
 
-    GC_TRACE_LOG("before generic alloc: %p %p\n", cls, &cls);
+//    GC_TRACE_LOG("before generic alloc: %p %p\n", cls, &cls);
 
     void* mem = gc_alloc(size, gc::GCKind::PYTHON);
     RELEASE_ASSERT(mem, "");
@@ -152,7 +152,7 @@ extern "C" PyObject* PystonType_GenericAlloc(BoxedClass* cls, Py_ssize_t nitems)
     PyObject_INIT(rtn, cls);
     assert(rtn->cls);
 
-    GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
+//    GC_TRACE_LOG("after generic alloc: %p %p\n", cls, &cls);
 
     return rtn;
 }

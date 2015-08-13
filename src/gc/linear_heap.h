@@ -45,6 +45,8 @@ namespace pyston {
                 }
             };
 
+            static const size_t size_of_header = sizeof(GCAllocation) + sizeof(Obj);
+
             std::vector<void*> obj;
             std::set<void*> obj_set;
 

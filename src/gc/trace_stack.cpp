@@ -54,6 +54,7 @@ namespace gc {
     }
 
     void TraceStack::push(void *p) {
+
         GC_TRACE_LOG("Pushing %p\n", p);
         GCAllocation* al = GCAllocation::fromUserData(p);
 

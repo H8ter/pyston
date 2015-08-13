@@ -36,8 +36,7 @@ namespace pyston {
 
 namespace gc {
 
-//extern MarkSweepGC GC;
-extern BartlettGC GC;
+extern GCAlgorithm GC;
 
 #if STAT_ALLOCATIONS
 static StatCounter gc_alloc_bytes("gc_alloc_bytes");

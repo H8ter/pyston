@@ -38,11 +38,11 @@ namespace pyston {
 namespace gc {
 
 #if TRACE_GC_MARKING
-        FILE* trace_fp = fopen("gc_trace.txt", "w");;
+        FILE* trace_fp = fopen("gc_trace.txt", "w");
+        FILE* trace    = fopen("trace.txt", "w");
 #endif
 
-//MarkSweepGC GC;
-BartlettGC GC;
+GCAlgorithm GC;
 
 std::deque<Box*>& pending_finalization_list() {
     return GC.pending_finalization_list;

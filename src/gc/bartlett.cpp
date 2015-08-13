@@ -22,6 +22,7 @@ namespace gc {
 
     void BartlettGC::runCollection() {
         GC_TRACE_LOG("GC begin\n");
+        TRACE("GC begin\n");
         startGCUnexpectedRegion();
 
         gh = static_cast<BartlettHeap*>(global_heap);
@@ -35,6 +36,7 @@ namespace gc {
         GCVisitor visitor(&stack, gh);
         gc(visitor, stack);
         //-------------------------------------------b
+#if 0
         std::vector<BoxedClass*> classes_to_remove;
         for (BoxedClass* cls : class_objects) {
             GCAllocation* al = GCAllocation::fromUserData(cls);
@@ -52,20 +54,22 @@ namespace gc {
         for (BoxedClass* cls : classes_to_remove) {
             class_objects.insert(cls->cls);
         }
+#endif
         orderFinalizers();
 
         std::vector<Box*> weakly_referenced;
-        global_heap->freeUnmarked(weakly_referenced); // sweepPhase
+        gh->freeUnmarked(weakly_referenced); // sweepPhase
 
         for (auto o : weakly_referenced) {
             assert(isValidGCObject(o));
             prepareWeakrefCallbacks(o);
-            global_heap->free(GCAllocation::fromUserData(o));
+            gh->free(GCAllocation::fromUserData(o));
         }
         //-------------------------------------------e
         gh->cleanupAfterCollection();
 
         endGCUnexpectedRegion();
+        TRACE("GC end\n");
         GC_TRACE_LOG("GC end\n");
     }
 
@@ -85,6 +89,9 @@ namespace gc {
         root_blocks = 0;
         move_cnt = 0;
         while (void* root = stack.pop()) {
+#if TRACE_GC_MARKING
+            RELEASE_ASSERT(gh->block(root).id == gh->cur_space || gh->block(root).id == gh->nxt_space, "%p\n", root);
+#endif
             promote(&gh->block(root));
             tospace_queue.push(root);
         }
@@ -96,6 +103,10 @@ namespace gc {
         while(!tospace_queue.empty()) {
             void* p = tospace_queue.front();
             tospace_queue.pop();
+
+#if TRACE_GC_MARKING
+            RELEASE_ASSERT(gh->block(p).id == gh->nxt_space, "%p\n", p);
+#endif
 
             copyChildren(LinearHeap::Obj::fromUserData(p), visitor, stack);
         }
@@ -118,32 +129,48 @@ namespace gc {
 
         void* data = al->user_data;
 
+        GC_TRACE_LOG("copy children %p\n", data);
         visitByGCKind(data, visitor);
 
         while(void* child = stack.pop()) {
-            copy(LinearHeap::Obj::fromUserData(child));
+#if TRACE_GC_MARKING
+            int b_id = gh->block(child).id;
 
-            tospace_queue.push(child);
+            if(!(b_id == gh->cur_space || b_id == gh->nxt_space)) {
+                fprintf(stderr, "b_id %d cur %d child %p\n", b_id, gh->cur_space, child);
+                showObjectFromData(stderr, data);
+                fprintf(stderr, "forward %p\n", LinearHeap::Obj::fromUserData(child)->forward);
+                RELEASE_ASSERT(false, "bad ref\n");
+            }
+#endif
+            copy(LinearHeap::Obj::fromUserData(child));
         }
     }
 
     void BartlettGC::copy(LinearHeap::Obj* obj) {
-        if (gh->block(obj).id == gh->nxt_space || obj->forward)
+        if (gh->block(obj).id == gh->nxt_space) {
+            tospace_queue.push(obj->data->user_data);
             return;
+        }
 
-        obj->forward = move(obj);
+        if (!obj->forward) {
+            obj->forward = move(obj);
+        }
+
+        tospace_queue.push(obj->forward);
+
     }
 
     void* BartlettGC::move(LinearHeap::Obj *obj) {
         LinearHeap::Obj* addr = LinearHeap::Obj::fromAllocation(
-                static_cast<BartlettHeap*>(global_heap)->_alloc(obj->size, gh->nxt_space)
+                gh->_alloc(obj->size, BartlettHeap::HEAP_SPACE::NXT_SPACE)
         );
 
         memcpy(addr, obj, obj->size + sizeof(LinearHeap::Obj) + sizeof(GCAllocation));
 
         void* forward = addr->data->user_data;
 
-        GC_TRACE_LOG("move from %p to %p\n", (void*)obj->data->user_data, forward);
+//        fprintf(stderr, "move from %p to %p\n", (void*)obj->data->user_data, forward);
         move_cnt++;
 
         return forward;
@@ -158,7 +185,7 @@ namespace gc {
     }
 
     void BartlettGC::update(LinearHeap::Obj* obj) {
-        GC_TRACE_LOG("update %p\n", obj);
+//        GC_TRACE_LOG("update %p\n", obj);
         void* data = obj->data->user_data;
         size_t size = obj->size;
 
@@ -175,6 +202,10 @@ namespace gc {
 //                    size_t diff = 0;
                     void** f_addr = (void**)((char*)LinearHeap::Obj::fromAllocation(al)->forward + diff);
                     *start = f_addr;
+
+//#if TRACE_GC_MARKING
+//    fprintf(stderr, "update child %p forward %p parent %p\n", (void*)al->user_data, f_addr, (void*)obj->data->user_data);
+//#endif
                 }
             }
             ++start;
@@ -187,6 +218,23 @@ namespace gc {
 
         //ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
         return true;
+    }
+
+    void BartlettGC::showObjectFromData(FILE *f, void *data) {
+        fprintf(f, "%p\n", data);
+
+        GCAllocation* al = GCAllocation::fromUserData(data);
+        LinearHeap::Obj* obj = LinearHeap::Obj::fromAllocation(al);
+
+        uint64_t bytes = obj->size + sizeof(LinearHeap::Obj)+ sizeof(GCAllocation);
+        void** start = (void**)obj;
+        void** end = (void**)((char*)obj + bytes);
+
+        while(start < end) {
+            fprintf(f, "%p ", *start);
+            ++start;
+        }
+        fprintf(f, "\n");
     }
 }
 }

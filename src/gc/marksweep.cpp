@@ -115,7 +115,7 @@ namespace pyston{
             markRoots(visitor);
 
             graphTraversalMarking(stack, visitor);
-
+#if 0
             // Some classes might be unreachable. Unfortunately, we have to keep them around for
             // one more collection, because during the sweep phase, instances of unreachable
             // classes might still end up looking at the class. So we visit those unreachable
@@ -144,7 +144,7 @@ namespace pyston{
             for (BoxedClass* cls : classes_to_remove) {
                 class_objects.insert(cls->cls);
             }
-
+#endif
             // Objects with finalizers cannot be freed in any order. During the call to a finalizer
             // of an object, the finalizer expects the object's references to still point to valid
             // memory. So we root objects whose finalizers need to be called by placing them in a

@@ -21,7 +21,7 @@ namespace pyston {
         }
 
         bool LinearHeap::fit(size_t bytes) {
-            return arena->fit(bytes + sizeof(GCAllocation) + sizeof(Obj));
+            return arena->fit(bytes + size_of_header);
         }
 
         GCAllocation *LinearHeap::alloc(size_t bytes) {
@@ -29,7 +29,7 @@ namespace pyston {
                 registerGCManagedBytes(bytes);
 
 //            LOCK_REGION(lock);
-            Obj* obj = _alloc(bytes + sizeof(GCAllocation) + sizeof(Obj));
+            Obj* obj = _alloc(bytes + size_of_header);
             obj->size = bytes;
             obj->magic = 0xCAFEBABE;
             obj->forward = NULL;
@@ -88,9 +88,15 @@ namespace pyston {
 
             auto it = std::lower_bound(obj.begin(), obj.end(), ptr);
 
+            if (it == obj.begin() && *it > ptr) return NULL;
+
             if (it == obj.end() || *it > ptr) --it;
 
-            return reinterpret_cast<Obj*>(*it)->data;
+            Obj* tmp = reinterpret_cast<Obj*>(*it);
+            if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr)
+                return NULL;
+            else
+                return tmp->data;
         }
 
         void LinearHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {

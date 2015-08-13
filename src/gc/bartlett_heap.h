@@ -40,7 +40,8 @@ namespace gc {
 
     private:
 
-        GCAllocation* _alloc(size_t bytes, int space);
+        enum class HEAP_SPACE {CUR_SPACE, NXT_SPACE};
+        GCAllocation* _alloc(size_t bytes, HEAP_SPACE sp);
 
         struct Block {
             LinearHeap *h;
