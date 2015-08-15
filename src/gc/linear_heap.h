@@ -12,10 +12,12 @@
 #include <vector>
 #include <set>
 
+#include "splay_tree.h"
+
 namespace pyston {
     namespace gc {
 
-        class SemiSpaceGC;
+        #define _TEST_ 0
 
         class LinearHeap : public Heap {
         private:
@@ -47,8 +49,18 @@ namespace pyston {
 
             static const size_t size_of_header = sizeof(GCAllocation) + sizeof(Obj);
 
-            std::vector<void*> obj;
-            std::set<void*> obj_set;
+//            std::set<void*> obj_set;
+            splay_tree<void*> obj_set;
+#if _TEST_
+            std::set<void*> test_set;
+            bool size_test() {
+                if (obj_set.size() != (int)test_set.size()) {
+                    fprintf(stderr, "%d %d\n", obj_set.size(), (int)test_set.size());
+                    return false;
+                }
+                return true;
+            }
+#endif
 
             bool alloc_register;
 

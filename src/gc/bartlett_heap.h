@@ -7,6 +7,9 @@
 
 #include "gc/heap.h"
 #include "linear_heap.h"
+#include "collector.h"
+
+#include <list>
 
 namespace pyston {
 namespace gc {
@@ -42,6 +45,9 @@ namespace gc {
 
         enum class HEAP_SPACE {CUR_SPACE, NXT_SPACE};
         GCAllocation* _alloc(size_t bytes, HEAP_SPACE sp);
+        GCAllocation* _try_alloc_in_active_block(size_t bytes, int space);
+        GCAllocation* _try_alloc_in_free_block(size_t bytes);
+        GCAllocation* _try_alloc_in_new_block(size_t bytes);
 
         struct Block {
             LinearHeap *h;
@@ -49,18 +55,18 @@ namespace gc {
 
             Block() {}
             Block(uintptr_t arena_start, uintptr_t block_size,
-                  uintptr_t initial_map_size, uintptr_t increment);
+                  uintptr_t initial_map_size, uintptr_t increment, int id);
         };
 
         Block& block(void* p);
 
-        int block_index(void* p);
+        int blockIndex(void *p);
 
-        bool is_free(int block_id);
+        bool isFree(int block_id);
 
-        bool valid_pointer(void* p);
+        bool validPointer(void *p);
 
-        Block& alloc_block();
+        Block& allocBlock(int id);
 
         const int max_blocks_cnt = 1024;      // should be power of 2
         const uintptr_t block_size;
@@ -68,6 +74,9 @@ namespace gc {
         uintptr_t increment;
 
         std::vector<Block> blocks;
+//        std::list<size_t> free_blocks;
+//        std::list<size_t> active_blocks;
+
         uintptr_t arena_start;
         uintptr_t arena_size;
         uintptr_t frontier;

@@ -21,13 +21,13 @@
 
 #include <gc/gc_base.h>
 #include "core/types.h"
-#include "marksweep.h"
-#include "bartlett.h"
 
 namespace pyston {
 namespace gc {
 
+//class MarkSweepGC;
 //typedef MarkSweepGC GCAlgorithm;
+class BartlettGC;
 typedef BartlettGC GCAlgorithm;
 
 #define TRACE_GC_MARKING 0

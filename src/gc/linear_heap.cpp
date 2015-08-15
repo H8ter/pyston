@@ -28,7 +28,7 @@ namespace pyston {
             if(alloc_register)
                 registerGCManagedBytes(bytes);
 
-//            LOCK_REGION(lock);
+            LOCK_REGION(lock);
             Obj* obj = _alloc(bytes + size_of_header);
             obj->size = bytes;
             obj->magic = 0xCAFEBABE;
@@ -38,12 +38,14 @@ namespace pyston {
         }
 
         LinearHeap::Obj*LinearHeap::_alloc(size_t size) {
-            obj.push_back(arena->cur);
             obj_set.insert(arena->cur);
-
+#if _TEST_
+            test_set.insert(arena->cur);
+            RELEASE_ASSERT(size_test(), "");
+#endif
             void* obj = arena->allocFromArena(size);
 
-                    ASSERT(obj < arena->frontier, "Panic! May not alloc beyound the heap!");
+            ASSERT(obj < arena->frontier, "Panic! May not alloc beyound the heap!");
 
             return (Obj*)obj;
         }
@@ -85,19 +87,33 @@ namespace pyston {
         GCAllocation *LinearHeap::getAllocationFromInteriorPointer(void *ptr) {
             if (!arena->contains(ptr))
                 return NULL;
+#if _TEST_
+            RELEASE_ASSERT(size_test(), "before\n");
+#endif
 
-//            auto it = std::lower_bound(obj_set.begin(), obj_set.end(), ptr);
-//
-//            if (it == obj_set.begin() && *it > ptr) return NULL;
-//
-//            if (it == obj_set.end() || *it > ptr) --it;
+            if (obj_set.size() == 0)
+                return NULL;
 
+            auto it = obj_set.lower_bound(ptr);
+#if _TEST_
+            RELEASE_ASSERT(size_test(), "after\n");
+#endif
 
-            auto it = std::lower_bound(obj.begin(), obj.end(), ptr);
+            if (it == obj_set.begin() && *it > ptr) {
+                return NULL;
+            }
 
-            if (it == obj.begin() && *it > ptr) return NULL;
+            if (obj_set.size() && (it == obj_set.end() || *it > ptr)) {
+                --it;
+            }
 
-            if (it == obj.end() || *it > ptr) --it;
+#if _TEST_
+            auto x = test_set.lower_bound(ptr);
+            if (test_set.size() && (x == test_set.end() || *x > ptr)) {
+                --x;
+            }
+            RELEASE_ASSERT(*x == *it, "%p | %p %p| %d\n", ptr, *x, *it, obj_set.count(*x));
+#endif
 
             Obj* tmp = reinterpret_cast<Obj*>(*it);
             if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr)
@@ -107,35 +123,32 @@ namespace pyston {
         }
 
         void LinearHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
-//            for(auto p = obj_set.begin(); p != obj_set.end();) {
-//                GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;
-//                clearOrderingState(al);
-//
-//                if(isMarked(al)) {
-//                    ::pyston::gc::clearMark(al);
-//                    ++p;
-//                }
-//                else {
-//                    if (_doFree(al, &weakly_referenced))
-//                        p = obj_set.erase(p);
-//                }
-//            }
-
-            for (auto p = obj.begin(); p != obj.end(); ++p) {
-                if (!obj_set.count(*p)) {
-                    continue;
-                }
-
+            #if _TEST_
+            RELEASE_ASSERT(size_test(), "");
+            #endif
+//            std::vector<void*> e;
+            for(auto p = obj_set.begin(); p != obj_set.end();) {
                 GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;
                 clearOrderingState(al);
+
                 if(isMarked(al)) {
                     ::pyston::gc::clearMark(al);
+                    ++p;
                 }
                 else {
-                    if (_doFree(al, &weakly_referenced))
-                        obj_set.erase(*p);
+                    if (_doFree(al, &weakly_referenced)) {
+#if _TEST_
+                        test_set.erase(*p);
+#endif
+                        p = obj_set.erase(p);
+//                        e.push_back(*p);
+//                        ++p;
+                    }
+                    else ++p;
                 }
             }
+//            for(auto er : e)
+//                obj_set.erase(er);
         }
 
         void LinearHeap::prepareForCollection() {
@@ -143,8 +156,7 @@ namespace pyston {
         }
 
         void LinearHeap::cleanupAfterCollection() {
-            obj.clear();
-            std::copy(obj_set.begin(), obj_set.end(), std::back_inserter(obj));
+
         }
 
         void LinearHeap::dumpHeapStatistics(int level) {
@@ -152,12 +164,23 @@ namespace pyston {
         }
 
         void LinearHeap::clear() {
-            obj.clear();
+#if _TEST_
+            RELEASE_ASSERT(size_test(), "");
+#endif
+
             obj_set.clear();
             arena->cur = (void*)arena->arena_start;
+
+            #if _TEST_
+            test_set.clear();
+            #endif
         }
 
         void LinearHeap::clearMark() {
+#if _TEST_
+            RELEASE_ASSERT(size_test(), "");
+#endif
+
             for(auto scan = obj_set.begin(); scan != obj_set.end(); ++scan) {
                 GCAllocation* al = reinterpret_cast<Obj*>(*scan)->data;
                 if (isMarked(al))
@@ -166,11 +189,20 @@ namespace pyston {
         }
 
         void LinearHeap::_erase_from_obj_set(GCAllocation *al) {
+#if _TEST_
+            RELEASE_ASSERT(size_test(), "");
+#endif
+
             void *p = Obj::fromAllocation(al);
-//            auto it = std::lower_bound(obj_set.begin(), obj_set.end(), p);
-//            obj_set.erase(it);
-            auto it = std::lower_bound(obj.begin(), obj.end(), p);
-            obj_set.erase(*it);
+
+            auto it = obj_set.lower_bound(p); // obj_set
+            if (it == obj_set.end()) return;  // obj_set
+
+            void* val = *it;
+#if _TEST_
+            test_set.erase(val);
+#endif
+            obj_set.erase(val);
         }
     } // namespace gc
 } // namespace pyston

@@ -19,13 +19,13 @@ namespace gc {
         initial_map_size += PAGE_SIZE - (initial_map_size % PAGE_SIZE);
         increment += PAGE_SIZE - (increment % PAGE_SIZE);
 
+        cur_space = nxt_space = 1;
+
         size_t initial_blocks_cnt = 1;
         allocated_blocks = 0;
         for(int i = 0; i < initial_blocks_cnt; i++) {
-            alloc_block();
+            allocBlock(0);
         }
-
-        cur_space = nxt_space = 1;
     }
 
     BartlettHeap::~BartlettHeap() {
@@ -38,7 +38,7 @@ namespace gc {
     }
 
     /*
-        memory allocation in specific space
+       memory allocation in specific space
     */
     GCAllocation *BartlettHeap::_alloc(size_t bytes, HEAP_SPACE sp) {
         TRACE("alloc begin\n");
@@ -48,58 +48,87 @@ namespace gc {
         GCAllocation* mem = NULL;
         int space = sp == HEAP_SPACE::CUR_SPACE ? cur_space : nxt_space;
 
-        // slow implementation
+        if (!(mem = _try_alloc_in_active_block(bytes, space))) {
+            if (!(mem = _try_alloc_in_free_block(bytes))) {
+                if (!(mem = _try_alloc_in_new_block(bytes))) {
+                    ASSERT(false, "allocation failed\n");
+                    return NULL;
+                }
+            }
+        }
+
+        TRACE("alloc end\n");
+        return mem;
+    }
+
+    GCAllocation* BartlettHeap::_try_alloc_in_active_block(size_t bytes, int space) {
+//        for(auto it = active_blocks.begin(); it != active_blocks.end(); ++it) {
+//            int i = (int)*it;
+//            Block& b = blocks[i];
+//            if (b.id == space && b.h->fit(bytes)) {
+//                heap_id = i;
+//                TRACE("%p | %d %d | %d | %d\n", (void*)b.h->arena->arena_start, b.id, space, (int)b.h->fit(bytes), i);
+//                return b.h->alloc(bytes);
+//            }
+//        }
+
         for(int i = 0; i < blocks.size(); i++) {
             Block& b = blocks[i];
-            if (b.id == space)
+            if (b.id == space) {
                 if (b.h->fit(bytes)) {
                     heap_id = i;
-                    TRACE("%p | %d %d | %d | %d\n", (void*)b.h->arena->arena_start, b.id, space, (int)b.h->fit(bytes), i);
-                    mem = b.h->alloc(bytes);
-                    break;
-                }
-        }
-
-        if (!mem) {
-            for (int i = 0; i < blocks.size(); i++) {
-                Block &b = blocks[i];
-
-                if (b.h->fit(bytes) && is_free(b.id)) {
-                    b.id = nxt_space;
-                    heap_id = i;
-                    TRACE("new %p | %d %d | %d | %d\n", (void *) b.h->arena->arena_start, b.id, nxt_space,
+                    TRACE("%p | %d %d | %d | %d\n", (void *) b.h->arena->arena_start, b.id, space,
                           (int) b.h->fit(bytes), i);
-                    mem = b.h->alloc(bytes);
-                    break;
+                    return b.h->alloc(bytes);
                 }
             }
         }
+        return NULL;
+    }
 
-        if (mem) {
-            TRACE("alloc end\n");
-            return mem;
-        }
-        else {
-            Block &b = alloc_block();
-            if (b.h->fit(bytes)) {
+    GCAllocation* BartlettHeap::_try_alloc_in_free_block(size_t bytes) {
+//        for(auto it = free_blocks.begin(); it != free_blocks.end(); ++it) {
+//                int i = (int)*it;
+//                Block& b = blocks[i];
+//                if (b.h->fit(bytes)) {
+//                    b.id = nxt_space;
+//                    heap_id = i;
+//                    TRACE("new %p | %d %d | %d | %d\n", (void *) b.h->arena->arena_start, b.id, nxt_space,
+//                          (int) b.h->fit(bytes), i);
+//
+//                    free_blocks.erase(it);
+//                    active_blocks.push_front(i);
+//
+//                    return b.h->alloc(bytes);
+//                }
+//            }
+
+        for (int i = 0; i < blocks.size(); i++) {
+            Block &b = blocks[i];
+
+            if (isFree(b.id) && b.h->fit(bytes)) {
                 b.id = nxt_space;
-                heap_id = (int)blocks.size()-1;
-                TRACE("new %p | %d %d | %d\n", (void *) b.h->arena->arena_start, b.id, nxt_space,
-                      (int) b.h->fit(bytes));
-                mem = b.h->alloc(bytes);
-                return mem;
+                heap_id = i;
+                TRACE("new %p | %d %d | %d | %d\n", (void *) b.h->arena->arena_start, b.id, nxt_space,
+                      (int) b.h->fit(bytes), i);
+                return b.h->alloc(bytes);
             }
-
-            
-            ASSERT(false, "allocation failed\n");
-            return NULL;
         }
+        return NULL;
+    }
+
+    GCAllocation* BartlettHeap::_try_alloc_in_new_block(size_t bytes) {
+        Block &b = allocBlock(nxt_space);
+        if (!b.h->fit(bytes)) return NULL;
+
+        heap_id = (int)blocks.size()-1;
+        TRACE("new %p | %d %d | %d\n", (void *) b.h->arena->arena_start, b.id, nxt_space,
+              (int) b.h->fit(bytes));
+        return b.h->alloc(bytes);
     }
 
     GCAllocation *BartlettHeap::realloc(GCAllocation *alloc, size_t bytes) {
-        // could cause error (location problem)
-
-        if(!valid_pointer(alloc)) return alloc;
+        if(!validPointer(alloc)) return alloc;
 
         Block &b = block(alloc);
         if(!b.h->fit(bytes)) {
@@ -123,7 +152,7 @@ namespace gc {
     }
 
     GCAllocation *BartlettHeap::getAllocationFromInteriorPointer(void *ptr) {
-        if (valid_pointer(ptr) /*&& (b.id == cur_space || b.id == nxt_space)*/)
+        if (validPointer(ptr) /*&& (b.id == cur_space || b.id == nxt_space)*/)
             return block(ptr).h->getAllocationFromInteriorPointer(ptr);
         else
             return NULL;
@@ -139,8 +168,6 @@ namespace gc {
     void BartlettHeap::prepareForCollection() {
         disableGC();
         nxt_space = cur_space + 1;                      // necessary for Bartlett's GC
-//        for testing only (not with make check)
-//        fprintf(stderr, "%d\n", allocated_blocks);
 #if TRACE_GC_MARKING
         fprintf(stderr, "%d\n", allocated_blocks);
 #endif
@@ -159,6 +186,14 @@ namespace gc {
 
         cur_space = nxt_space;                          // necessary for Bartlett's GC
 
+//        for(auto it = active_blocks.begin(); it != active_blocks.end();) {
+//            if (isFree(blocks[*it].id)) {
+//                free_blocks.push_front(*it);
+//                it = active_blocks.erase(it);
+//            }
+//            else ++it;
+//        }
+
         bytesAllocatedSinceCollection = 0;
         enableGC();
     }
@@ -167,30 +202,36 @@ namespace gc {
 
     }
 
-    int BartlettHeap::block_index(void *p) {
+    int BartlettHeap::blockIndex(void *p) {
         return (int)(((uintptr_t)p - arena_start) / block_size);
     }
 
     BartlettHeap::Block& BartlettHeap::block(void* p) {
-        return blocks[block_index(p)];
+        return blocks[blockIndex(p)];
     }
 
-    inline bool BartlettHeap::is_free(int block_id) {
+    inline bool BartlettHeap::isFree(int block_id) {
         return block_id != cur_space && block_id != nxt_space;
     }
 
-    inline bool BartlettHeap::valid_pointer(void *p) {
+    inline bool BartlettHeap::validPointer(void *p) {
         return (uintptr_t)p >= arena_start && (uintptr_t)p < frontier;
     }
 
-    BartlettHeap::Block& BartlettHeap::alloc_block() {
-        uintptr_t b_count = blocks.size();
+    BartlettHeap::Block& BartlettHeap::allocBlock(int id) {
+        size_t b_count = blocks.size();
         RELEASE_ASSERT(b_count + 1 <= max_blocks_cnt, "heap is full\n");
 
         uintptr_t b_start = b_count ? blocks[b_count -1].h->arena->arena_start + block_size : arena_start;
-        blocks.push_back(Block(b_start, block_size, initial_map_size, increment));
+        blocks.push_back(Block(b_start, block_size, initial_map_size, increment, id));
+
         allocated_blocks++;
         frontier += block_size;
+
+//        if (isFree(id))
+//            free_blocks.push_back(b_count);
+//        else
+//            active_blocks.push_back(b_count);
 
 #if TRACE_GC_MARKING
       fprintf(stderr, "block alloc %p %d\n", (void*)b_start, allocated_blocks);
@@ -200,10 +241,10 @@ namespace gc {
     }
     
     BartlettHeap::Block::Block(uintptr_t arena_start, uintptr_t block_size, uintptr_t initial_map_size,
-                               uintptr_t increment)
+                               uintptr_t increment, int id)
     {
         h  = new LinearHeap(arena_start, block_size, initial_map_size, increment, false);
-        id = 0;
+        this->id = id;
     }
 }
 }

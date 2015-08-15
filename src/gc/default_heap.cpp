@@ -97,9 +97,6 @@ namespace pyston {
             }
         }
 
-//Heap global_heap;
-
-
         void DefaultHeap::destructContents(GCAllocation* al) {
             _doFree(al, NULL);
         }

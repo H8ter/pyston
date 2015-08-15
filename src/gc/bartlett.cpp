@@ -81,9 +81,12 @@ namespace gc {
         int free_blocks = 0;
         for(int i = 0; i < gh->blocks.size(); i++) {
             active_blocks += gh->blocks[i].id == gh->cur_space;
-            free_blocks += gh->is_free(gh->blocks[i].id );
+            free_blocks += gh->isFree(gh->blocks[i].id);
         }
+//        active_blocks = gh->active_blocks.size();
+//        free_blocks = gh->free_blocks.size();
         fprintf(stderr, "active %d | free %d\n", active_blocks, free_blocks);
+        RELEASE_ASSERT(active_blocks + free_blocks == gh->blocks.size(), "smth went wrong\n");
 #endif
 
         root_blocks = 0;
@@ -170,8 +173,9 @@ namespace gc {
         memcpy(addr, obj, obj->size + sizeof(LinearHeap::Obj) + sizeof(GCAllocation));
 
         void* forward = addr->data->user_data;
-
+#if TRACE_GC_MARKING
 //        fprintf(stderr, "move from %p to %p\n", (void*)obj->data->user_data, forward);
+#endif
         move_cnt++;
 
         return forward;

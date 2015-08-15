@@ -12,6 +12,7 @@
 namespace pyston {
 namespace gc {
 
+//    class BartlettHeap;
     /*
         Mostly Copying Bartlett's Garbage Collector
     */

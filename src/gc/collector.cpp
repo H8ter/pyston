@@ -184,7 +184,7 @@ static void callPendingFinalizers() {
         Box* box = GC.pending_finalization_list.front();
         GC.pending_finalization_list.pop_front();
 
-        ASSERT(isValidGCObject(box), "objects to be finalized should still be alive");
+        ASSERT(isValidGCObject(box), "objects to be finalized should still be alive %p\n", (void*)box);
 
         if (isWeaklyReferenced(box)) {
             // Callbacks for weakly-referenced objects with finalizers (if any), followed by call to finalizers.
