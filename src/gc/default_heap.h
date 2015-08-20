@@ -16,6 +16,9 @@
 #include "core/types.h"
 
 #include "gc/heap.h"
+#include "collector.h"
+
+#include <map>
 
 namespace pyston {
 
@@ -459,17 +462,34 @@ namespace pyston {
                 small_arena.free(alloc);
             }
 
+
+            std::map<int64_t, int64_t> diff_set;
             // not thread safe:
             GCAllocation* getAllocationFromInteriorPointer(void* ptr) {
+                static StatCounter sc_us("us_gc_get_allocation_from_interior_pointer");
+                Timer _t("getAllocationFromInteriorPointer", /*min_usec=*/0); // 10000
+
+                GCAllocation* alc = NULL;
                 if (large_arena.contains(ptr)) {
-                    return large_arena.allocationFrom(ptr);
+                    alc = large_arena.allocationFrom(ptr);
                 } else if (huge_arena.contains(ptr)) {
-                    return huge_arena.allocationFrom(ptr);
+                    alc = huge_arena.allocationFrom(ptr);
                 } else if (small_arena.contains(ptr)) {
-                    return small_arena.allocationFrom(ptr);
+                    alc = small_arena.allocationFrom(ptr);
                 }
 
-                return NULL;
+                long us = _t.end();
+                sc_us.log(us);
+
+                if (alc != NULL) {
+                    int64_t diff = (int64_t)((char*)ptr - (char*)alc->user_data);
+                    diff_set[diff]++;
+
+                    if (diff == 203)
+                        do {} while(false);
+                }
+
+                return alc;
             }
 
             // not thread safe:

@@ -4,7 +4,7 @@
 
 #include "linear_heap.h"
 
-
+#include "collector.h"
 
 namespace pyston {
     namespace gc {
@@ -25,6 +25,10 @@ namespace pyston {
         }
 
         GCAllocation *LinearHeap::alloc(size_t bytes) {
+//            if (bytes >= 1000000) {
+//                fprintf(stderr, "alloc %ld\n", (long)bytes);
+//            }
+
             if(alloc_register)
                 registerGCManagedBytes(bytes);
 
@@ -45,16 +49,22 @@ namespace pyston {
 #endif
             void* obj = arena->allocFromArena(size);
 
+//            if (size > 10000000) {
+//                fprintf(stderr, "alloc %ld %p\n", (long)size, obj);
+//            }
+
             ASSERT(obj < arena->frontier, "Panic! May not alloc beyound the heap!");
 
             return (Obj*)obj;
         }
 
         GCAllocation *LinearHeap::realloc(GCAllocation *al, size_t bytes) {
+            if (!arena->contains(al)) return al;
+
             Obj* o = Obj::fromAllocation(al);
             size_t size = o->size;
-            if (size >= bytes && size < bytes * 2)
-                return al;
+//            if (size >= bytes && size < bytes * 2)
+//                return al;
 
             GCAllocation* rtn = alloc(bytes);
             memcpy(rtn, al, std::min(bytes, size));
@@ -85,27 +95,27 @@ namespace pyston {
         }
 
         GCAllocation *LinearHeap::getAllocationFromInteriorPointer(void *ptr) {
-            if (!arena->contains(ptr))
-                return NULL;
 #if _TEST_
             RELEASE_ASSERT(size_test(), "before\n");
 #endif
+            static StatCounter sc_us("us_gc_get_allocation_from_interior_pointer");
+            Timer _t("getAllocationFromInteriorPointer", /*min_usec=*/0); // 10000
 
-            if (obj_set.size() == 0)
-                return NULL;
+            GCAllocation* alc = NULL;
 
-            auto it = obj_set.lower_bound(ptr);
+            if (!arena->contains(ptr) || obj_set.size() == 0)
+                alc = NULL;
+            else {
+                auto it = obj_set.lower_bound(ptr);
 #if _TEST_
             RELEASE_ASSERT(size_test(), "after\n");
 #endif
 
-            if (it == obj_set.begin() && *it > ptr) {
-                return NULL;
-            }
-
-            if (obj_set.size() && (it == obj_set.end() || *it > ptr)) {
-                --it;
-            }
+                if (it == obj_set.begin() && *it > ptr) {
+                    alc = NULL;
+                }
+                else if (obj_set.size() && (it == obj_set.end() || *it > ptr)) {
+                    --it;
 
 #if _TEST_
             auto x = test_set.lower_bound(ptr);
@@ -115,14 +125,28 @@ namespace pyston {
             RELEASE_ASSERT(*x == *it, "%p | %p %p| %d\n", ptr, *x, *it, obj_set.count(*x));
 #endif
 
-            Obj* tmp = reinterpret_cast<Obj*>(*it);
-            if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr)
-                return NULL;
-            else
-                return tmp->data;
+                    Obj* tmp = reinterpret_cast<Obj*>(*it);
+                    if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr)
+                        alc = NULL;
+                    else {
+                        alc = tmp->data;
+
+//                        int64_t diff = DIFF(ptr, tmp->data->user_data);//(int)((void**)ptr - (void**)tmp->data->user_data);
+//                        diff_set[diff]++;
+                    }
+                }
+
+            }
+
+            long us = _t.end();
+            sc_us.log(us);
+
+            return alc;
         }
 
         void LinearHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
+//            fprintf(stderr, "free unmarked begin\n");
+
             #if _TEST_
             RELEASE_ASSERT(size_test(), "");
             #endif
@@ -149,14 +173,15 @@ namespace pyston {
             }
 //            for(auto er : e)
 //                obj_set.erase(er);
+//            fprintf(stderr, "free unmarked end\n");
         }
 
         void LinearHeap::prepareForCollection() {
-
+            alloc_register = false;
         }
 
         void LinearHeap::cleanupAfterCollection() {
-
+            alloc_register = true;
         }
 
         void LinearHeap::dumpHeapStatistics(int level) {

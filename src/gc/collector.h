@@ -30,6 +30,10 @@ namespace gc {
 class BartlettGC;
 typedef BartlettGC GCAlgorithm;
 
+inline int64_t DIFF(void* a, void* b) {
+    return ((char*)(a) - (char*)(b));
+}
+
 #define TRACE_GC_MARKING 0
 #if TRACE_GC_MARKING
 extern FILE* trace_fp;

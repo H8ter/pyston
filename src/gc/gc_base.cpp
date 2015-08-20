@@ -142,11 +142,19 @@ namespace pyston {
         alloc_bytes += REDZONE_SIZE * 2;
 #endif
 
+//
+        bytesAllocatedSinceCollection += bytes;
+        if (unlikely(bytesAllocatedSinceCollection >= ALLOCBYTES_PER_COLLECTION)) {
+            _bytesAllocatedTripped();
+        }
+
         GCAllocation* alloc = global_heap->alloc(alloc_bytes);
+
 
 #ifndef NVALGRIND
     VALGRIND_DISABLE_ERROR_REPORTING;
 #endif
+
 
         alloc->kind_id = kind_id;
         alloc->gc_flags = 0;

@@ -38,7 +38,9 @@ namespace gc {
 
 
 unsigned bytesAllocatedSinceCollection;
+
 static StatCounter gc_registered_bytes("gc_registered_bytes");
+
 void _bytesAllocatedTripped() {
     gc_registered_bytes.log(bytesAllocatedSinceCollection);
     bytesAllocatedSinceCollection = 0;

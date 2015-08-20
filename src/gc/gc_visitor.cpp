@@ -21,8 +21,16 @@ namespace gc{
             return;
         }
 
-        ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
-        stack->push(p);
+        auto tmp = global_heap->getAllocationFromInteriorPointer(p);
+        if (tmp) {
+            ASSERT((void *) tmp->user_data == p, "%p %p %p", tmp, (void *) tmp->user_data, p);
+            stack->push(p);
+        }
+        else {
+//            block_info(p);
+            ASSERT(false, "");
+        }
+
     }
 
     void GCVisitor::visitRange(void* const* start, void* const* end) {

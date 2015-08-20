@@ -126,13 +126,19 @@ void Stats::dump(bool includeZeros) {
     if (!Stats::enabled)
         return;
 
+#if TRACE_GC_MARKING
+    FILE* stats = fopen("stats.txt", "a");
+#else
+    FILE* stats = stderr;
+#endif
+
     double cycles_per_us = Stats::estimateCPUFreq();
-    fprintf(stderr, "Stats:\n");
-    fprintf(stderr, "estimated_cpu_mhz: %5.5f\n", cycles_per_us);
+    fprintf(stats, "Stats:\n");
+    fprintf(stats, "estimated_cpu_mhz: %5.5f\n", cycles_per_us);
 
     gc::dumpHeapStatistics(0);
 
-    fprintf(stderr, "Counters:\n");
+    fprintf(stats, "Counters:\n");
 
     std::vector<std::pair<std::string, uint64_t*>> pairs;
     for (const auto& p : *names) {
@@ -147,10 +153,10 @@ void Stats::dump(bool includeZeros) {
         uint64_t count = *pairs[i].second;
         if (includeZeros || count > 0) {
             if (startswith(pairs[i].first, "us_") || startswith(pairs[i].first, "_init_us_")) {
-                fprintf(stderr, "%s: %lu\n", pairs[i].first.c_str(), (uint64_t)(count / cycles_per_us));
+                fprintf(stats, "%s: %lu\n", pairs[i].first.c_str(), (uint64_t)(count / cycles_per_us));
 
             } else
-                fprintf(stderr, "%s: %lu\n", pairs[i].first.c_str(), count);
+                fprintf(stats, "%s: %lu\n", pairs[i].first.c_str(), count);
 
             if (startswith(pairs[i].first, "us_timer_"))
                 accumulated_stat_timer_ticks += count;
@@ -161,7 +167,7 @@ void Stats::dump(bool includeZeros) {
     }
 
     if (includeZeros || accumulated_stat_timer_ticks > 0)
-        fprintf(stderr, "ticks_all_timers: %lu\n", accumulated_stat_timer_ticks);
+        fprintf(stats, "ticks_all_timers: %lu\n", accumulated_stat_timer_ticks);
 
 #if 0
     // I want to enable this, but am leaving it disabled for the time
@@ -176,7 +182,9 @@ void Stats::dump(bool includeZeros) {
         fprintf(stderr, "WARNING: accumulated stat timer ticks != ticks in main - don't trust timer output.");
     }
 #endif
-    fprintf(stderr, "(End of stats)\n");
+    fprintf(stats, "(End of stats)\n");
+
+    fclose(stats);
 }
 
 void Stats::endOfInit() {

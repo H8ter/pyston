@@ -13,6 +13,9 @@ namespace pyston {
 namespace gc {
 
     BartlettGC::BartlettGC() {
+#if TRACE_GC_MARKING
+        Stats::setEnabled(true);
+#endif
         global_heap = new BartlettHeap(SMALL_ARENA_START, ARENA_SIZE);
     }
 
@@ -22,8 +25,19 @@ namespace gc {
 
     void BartlettGC::runCollection() {
         GC_TRACE_LOG("GC begin\n");
-        TRACE("GC begin\n");
+#if TRACE_GC_MARKING
+        fprintf(stderr, "GC begin\n");
+#endif
+        static StatCounter sc_us("us_gc_collections");
+        static StatCounter sc("gc_collections");
+        sc.log();
+
+        UNAVOIDABLE_STAT_TIMER(t0, "us_timer_gc_collection");
+
+        ncollections++;
+
         startGCUnexpectedRegion();
+        Timer _t("collecting", /*min_usec=*/0); // 10000
 
         gh = static_cast<BartlettHeap*>(global_heap);
 
@@ -69,11 +83,40 @@ namespace gc {
         gh->cleanupAfterCollection();
 
         endGCUnexpectedRegion();
-        TRACE("GC end\n");
+
+        long us = _t.end();
+        sc_us.log(us);
+
+        // dumpHeapStatistics();
+#if TRACE_GC_MARKING
+        Stats::dump(false);
+        Stats::clear();
+#endif
+
+#if TRACE_GC_MARKING
+        fprintf(stderr, "GC end\n");
+#endif
         GC_TRACE_LOG("GC end\n");
+
+#if TRACE_GC_MARKING
+//        FILE* diff_fp = fopen("diff_bt_1.txt", "a");
+//        for(auto pr : gh->diff_map)
+//            fprintf(diff_fp, "%" PRId64 " %" PRId64 " | ", pr.first, pr.second);
+//        if (gh->diff_map.size()) fprintf(diff_fp, "\n");
+//        gh->diff_map.clear();
+//        fclose(diff_fp);
+#endif
     }
 
     void BartlettGC::gc(GCVisitor &visitor, TraceStack &stack) {
+        findAndPromoteRoots(visitor, stack);
+
+        scanAndCopy(visitor, stack);
+
+        update();
+    }
+
+    void BartlettGC::findAndPromoteRoots(GCVisitor &visitor, TraceStack &stack) {
         markRoots(visitor);
 
 #if TRACE_GC_MARKING
@@ -92,43 +135,45 @@ namespace gc {
         root_blocks = 0;
         move_cnt = 0;
         while (void* root = stack.pop()) {
-#if TRACE_GC_MARKING
             RELEASE_ASSERT(gh->block(root).id == gh->cur_space || gh->block(root).id == gh->nxt_space, "%p\n", root);
-#endif
+
             promote(&gh->block(root));
             tospace_queue.push(root);
         }
-
-        // scan & copy
 #if TRACE_GC_MARKING
         fprintf(stderr, "root blocks count %d\n", root_blocks);
 #endif
+    }
+
+    void BartlettGC::scanAndCopy(GCVisitor &visitor, TraceStack &stack) {
+        // scan & copy
+        static StatCounter sc_us("us_gc_copy_phase");
+        static StatCounter sc_marked_objs("gc_marked_object_count");
+        Timer _t("copyPhase", /*min_usec=*/0); // 10000
+
         while(!tospace_queue.empty()) {
+            sc_marked_objs.log();
+
             void* p = tospace_queue.front();
             tospace_queue.pop();
 
-#if TRACE_GC_MARKING
+            RELEASE_ASSERT(*((void**)((char*)p - 32)) == (void*)0xCAFEBABE, "%p", p); // !!!
             RELEASE_ASSERT(gh->block(p).id == gh->nxt_space, "%p\n", p);
-#endif
 
             copyChildren(LinearHeap::Obj::fromUserData(p), visitor, stack);
         }
+        long us = _t.end();
+        sc_us.log(us);
+
 #if TRACE_GC_MARKING
         fprintf(stderr, "move count %d\n", move_cnt);
 #endif
-        // update references
-        for(auto b : gh->blocks) {
-            if (b.id == gh->nxt_space) {
-                for (auto obj : b.h->obj_set)
-                    update((LinearHeap::Obj *) obj);
-            }
-        }
     }
 
     void BartlettGC::copyChildren(LinearHeap::Obj *obj, GCVisitor &visitor, TraceStack &stack) {
         GCAllocation* al = obj->data;
 
-        if (!isMarked(al)) return;
+        if (!isMarked(al) || al->kind_id == GCKind::UNTRACKED) return; // !!!
 
         void* data = al->user_data;
 
@@ -136,6 +181,8 @@ namespace gc {
         visitByGCKind(data, visitor);
 
         while(void* child = stack.pop()) {
+
+//            child = gh->getAllocationFromInteriorPointer(child)->user_data; // !!!
 
             int b_id = gh->block(child).id;
 
@@ -189,7 +236,26 @@ namespace gc {
         }
     }
 
-    void BartlettGC::update(LinearHeap::Obj* obj) {
+    void BartlettGC::update() {
+        static StatCounter sc_us("us_gc_update_phase");
+        Timer _t("updatePhase", /*min_usec=*/0); // 10000
+
+        for(auto b : gh->blocks) {
+            if (b.id == gh->nxt_space) {
+                for (auto obj : b.h->obj_set)
+                    updateReferences((LinearHeap::Obj *) obj);
+            }
+        }
+
+        long us = _t.end();
+        sc_us.log(us);
+    }
+
+    void BartlettGC::updateReferences(LinearHeap::Obj* obj) {
+        if (!isMarked(obj->data)) return;                           // no need to update unreachable object
+
+//        if (obj->data->kind_id == GCKind::UNTRACKED) return;        // !!!
+
 //        GC_TRACE_LOG("update %p\n", obj);
         void* data = obj->data->user_data;
         size_t size = obj->size;
@@ -197,13 +263,15 @@ namespace gc {
         void** start = (void**)data;
         void** end   = (void**)((char*)data + size);
 
+        RELEASE_ASSERT(*((void**)((char*)data - 32)) == (void*)0xCAFEBABE, "%p", data);
+
         while(start <= end) {
             void* ptr = *start;
-            if (isValidPointer(ptr)) {
-                GCAllocation* al =global_heap->getAllocationFromInteriorPointer(ptr);
+            if (gh->validPointer(ptr)) {
+                GCAllocation* al = gh->getAllocationFromInteriorPointer(ptr);
 
                 if (al && LinearHeap::Obj::fromAllocation(al)->forward) {
-                    size_t diff = (size_t)((void**)ptr - (void**)al->user_data);
+                    int64_t diff = DIFF(ptr, al->user_data);
 //                    size_t diff = 0;
                     void** f_addr = (void**)((char*)LinearHeap::Obj::fromAllocation(al)->forward + diff);
                     *start = f_addr;
@@ -215,14 +283,6 @@ namespace gc {
             }
             ++start;
         }
-    }
-
-    bool BartlettGC::isValidPointer(void *p) {
-        if ((uintptr_t)p < SMALL_ARENA_START || (uintptr_t)p >= HUGE_ARENA_START + ARENA_SIZE)
-            return false;
-
-        //ASSERT(global_heap->getAllocationFromInteriorPointer(p)->user_data == p, "%p", p);
-        return true;
     }
 
     void BartlettGC::showObjectFromData(FILE *f, void *data) {

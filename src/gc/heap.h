@@ -40,10 +40,10 @@ void _bytesAllocatedTripped();
 // is ultimately GC managed but did not get allocated through gc_alloc,
 // such as memory that will get freed by a gc destructor.
 inline void registerGCManagedBytes(size_t bytes) {
-    bytesAllocatedSinceCollection += bytes;
-    if (unlikely(bytesAllocatedSinceCollection >= ALLOCBYTES_PER_COLLECTION)) {
-        _bytesAllocatedTripped();
-    }
+//    bytesAllocatedSinceCollection += bytes;
+//    if (unlikely(bytesAllocatedSinceCollection >= ALLOCBYTES_PER_COLLECTION)) {
+//        _bytesAllocatedTripped();
+//    }
 }
 
 

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <vector>
 #include <set>
+#include <map>
 
 #include "splay_tree.h"
 
@@ -49,8 +50,8 @@ namespace pyston {
 
             static const size_t size_of_header = sizeof(GCAllocation) + sizeof(Obj);
 
-//            std::set<void*> obj_set;
-            splay_tree<void*> obj_set;
+            std::set<void*> obj_set;
+//            splay_tree<void*> obj_set;
 #if _TEST_
             std::set<void*> test_set;
             bool size_test() {
@@ -103,6 +104,8 @@ namespace pyston {
             void clear();
 
             void clearMark();
+
+//            std::map<int64_t,int64_t> diff_set;
 
         private:
 

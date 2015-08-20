@@ -10,6 +10,7 @@
 #include "collector.h"
 
 #include <list>
+#include <map>
 
 namespace pyston {
 namespace gc {
@@ -41,7 +42,7 @@ namespace gc {
 
         virtual void dumpHeapStatistics(int level) override;
 
-    private:
+    //private:
 
         enum class HEAP_SPACE {CUR_SPACE, NXT_SPACE};
         GCAllocation* _alloc(size_t bytes, HEAP_SPACE sp);
@@ -86,6 +87,11 @@ namespace gc {
 
         int allocated_blocks;
         int heap_id;
+
+
+//        std::map<int64_t,int64_t> diff_map;
+
+        bool alloc_register;
     };
 }
 }

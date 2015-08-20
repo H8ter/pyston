@@ -8,6 +8,7 @@
 #include "gc/gc_base.h"
 #include "bartlett_heap.h"
 #include <queue>
+#include <map>
 
 namespace pyston {
 namespace gc {
@@ -24,9 +25,15 @@ namespace gc {
 
         virtual void runCollection() override;
 
+        BartlettHeap* gh;
+
     private:
 
         void gc(GCVisitor &visitor, TraceStack &stack);
+
+        void findAndPromoteRoots(GCVisitor &visitor, TraceStack &stack);
+
+        void scanAndCopy(GCVisitor &visitor, TraceStack &stack);
 
         void promote(BartlettHeap::Block* b);
 
@@ -36,13 +43,11 @@ namespace gc {
 
         void* move(LinearHeap::Obj* obj);
 
-        void update(LinearHeap::Obj* obj);
+        void update();
 
-        bool isValidPointer(void* p);
+        void updateReferences(LinearHeap::Obj* obj);
 
         std::queue<void*> tospace_queue;
-
-        BartlettHeap* gh;
 
         // for testting
         int root_blocks;

@@ -17,8 +17,12 @@ namespace pyston{
     namespace gc {
 
         MarkSweepGC::MarkSweepGC() {
+#if TRACE_GC_MARKING
+            Stats::setEnabled(true);
+#endif
+
 //            global_heap = new DefaultHeap();
-            global_heap = new LinearHeap(LARGE_ARENA_START, ARENA_SIZE, INITIAL_MAP_SIZE, INCREMENT);
+            global_heap = new LinearHeap(SMALL_ARENA_START, ARENA_SIZE, INITIAL_MAP_SIZE, INCREMENT);
 //            global_heap = new BartlettHeap(SMALL_ARENA_START, ARENA_SIZE);
             gc_enabled = true;
             should_not_reenter_gc = false;
@@ -52,9 +56,10 @@ namespace pyston{
             RELEASE_ASSERT(!should_not_reenter_gc, "");
             should_not_reenter_gc = true; // begin non-reentrant section
 
-            Timer _t("collecting", /*min_usec=*/10000);
+            Timer _t("collecting", /*min_usec=*/0); // 10000
 
             global_heap->prepareForCollection();
+            disableGC();
 
             // Finalizers might have been called since the last GC.
             // Normally we invalidate the list everytime we call a batch of objects with finalizers.
@@ -85,6 +90,8 @@ namespace pyston{
             should_not_reenter_gc = false; // end non-reentrant section
 
             global_heap->cleanupAfterCollection();
+            bytesAllocatedSinceCollection = 0;
+            enableGC();
 
             if (VERBOSITY("gc") >= 2)
                 printf("Collection #%d done\n\n", ncollections);
@@ -93,12 +100,24 @@ namespace pyston{
             sc_us.log(us);
 
             // dumpHeapStatistics();
+#if TRACE_GC_MARKING
+            Stats::dump(false);
+            Stats::clear();
+#endif
             GC_TRACE_LOG("GC end\n");
+
+//            DefaultHeap* gh = (DefaultHeap*)global_heap;
+//            FILE* f = fopen("diff_ms_def.txt", "a");
+//            for(std::pair<int64_t ,int64_t >pr : gh->diff_set)
+//                fprintf(f, "%" PRId64 " %" PRId64 " | ", pr.first, pr.second);
+//            if (gh->diff_set.size()) fprintf(f, "\n");
+//            gh->diff_set.clear();
+//            fclose(f);
         }
 
         void MarkSweepGC::markPhase() {
             static StatCounter sc_us("us_gc_mark_phase");
-            Timer _t("markPhase", /*min_usec=*/10000);
+            Timer _t("markPhase", /*min_usec=*/0); // 10000
 
 #ifndef NVALGRIND
     // Have valgrind close its eyes while we do the conservative stack and data scanning,
@@ -161,7 +180,7 @@ namespace pyston{
 
         void MarkSweepGC::sweepPhase(std::vector<Box *> &weakly_referenced) {
             static StatCounter sc_us("us_gc_sweep_phase");
-            Timer _t("sweepPhase", /*min_usec=*/10000);
+            Timer _t("sweepPhase", /*min_usec=*/0); // 10000
 
             // we need to use the allocator here because these objects are referenced only here, and calling the weakref
             // callbacks could start another gc

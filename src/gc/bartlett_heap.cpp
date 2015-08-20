@@ -13,6 +13,8 @@ namespace gc {
         block_size(arena_size / max_blocks_cnt), arena_start(arena_start), arena_size(arena_size),
         frontier(arena_start)
     {
+        alloc_register = true;
+
         initial_map_size = INITIAL_MAP_SIZE / max_blocks_cnt;
         increment = INCREMENT / max_blocks_cnt;
 
@@ -42,7 +44,8 @@ namespace gc {
     */
     GCAllocation *BartlettHeap::_alloc(size_t bytes, HEAP_SPACE sp) {
         TRACE("alloc begin\n");
-        registerGCManagedBytes(bytes);
+        if (alloc_register)
+            registerGCManagedBytes(bytes);
         LOCK_REGION(lock);
 
         GCAllocation* mem = NULL;
@@ -152,20 +155,26 @@ namespace gc {
     }
 
     GCAllocation *BartlettHeap::getAllocationFromInteriorPointer(void *ptr) {
-        if (validPointer(ptr) /*&& (b.id == cur_space || b.id == nxt_space)*/)
-            return block(ptr).h->getAllocationFromInteriorPointer(ptr);
-        else
-            return NULL;
+        GCAllocation* alc = validPointer(ptr) ? block(ptr).h->getAllocationFromInteriorPointer(ptr) : NULL;
+
+        if (alc) {
+//            int64_t diff = DIFF(ptr, alc->user_data);//(int)((void**)ptr - (void**)alc->user_data);
+//            diff_map[diff]++;
+        }
+        return alc;
     }
 
     void BartlettHeap::freeUnmarked(std::vector<Box *> &weakly_referenced) {
         for(int i = 0; i < blocks.size(); i++) {
             Block &b = blocks[i];
+            if (isFree(b.id)) continue;
+
             b.h->freeUnmarked(weakly_referenced);
         }
     }
 
     void BartlettHeap::prepareForCollection() {
+        alloc_register = false;
         disableGC();
         nxt_space = cur_space + 1;                      // necessary for Bartlett's GC
 #if TRACE_GC_MARKING
@@ -196,6 +205,7 @@ namespace gc {
 
         bytesAllocatedSinceCollection = 0;
         enableGC();
+        alloc_register = true;
     }
 
     void BartlettHeap::dumpHeapStatistics(int level) {
