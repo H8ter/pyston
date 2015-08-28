@@ -20,6 +20,7 @@ namespace pyston {
     namespace gc {
 
         #define _TEST_ 0
+        #define OBJSET 0
 
         class LinearHeap : public Heap {
         private:
@@ -28,8 +29,13 @@ namespace pyston {
 
             SemiSpace* const arena;
 
+
+            #define ALIVE_BIT 0x1
             struct Obj {
-                size_t magic;
+                void* prev;
+                void* next;
+                size_t flags : 32;
+                size_t magic : 32;
                 size_t size;
                 void* forward;
                 GCAllocation data[0];
@@ -46,6 +52,18 @@ namespace pyston {
 
                 static Obj* fromUserData(void* p) {
                     return fromAllocation(GCAllocation::fromUserData(p));
+                }
+
+                static bool alive(Obj* obj) {
+                    return bool(obj->flags & ALIVE_BIT);
+                }
+
+                static void set_alive_flag(Obj* obj) {
+                    obj->flags |= ALIVE_BIT;
+                }
+
+                static void clear_alive_flag(Obj* obj) {
+                    obj->flags &= ~ALIVE_BIT;
                 }
             };
 
@@ -116,6 +134,46 @@ namespace pyston {
             Obj* _alloc(size_t size);
 
             void _erase_from_obj_set(GCAllocation *al);
+
+            void* first_alive() {
+                void* p = (void*)arena->arena_start;
+
+                while (p < arena->cur) {                        // could cause segmantation fault
+                    if (reinterpret_cast<Obj*>(p)->magic == 0xCAFEBABE) {
+                        if (Obj::alive(reinterpret_cast<Obj*>(p)))
+                            break;
+                        else
+                            p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
+                    }
+                    else {
+                        p = (void *)((char *) p + 1);
+                    }
+                }
+
+                return p;
+            }
+
+            // not fast enought
+            void* next_object(void* p) {
+                p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
+
+                while (p < arena->cur) {                        // could cause segmantation fault
+                    if (reinterpret_cast<Obj*>(p)->magic == 0xCAFEBABE) {
+                        if (Obj::alive(reinterpret_cast<Obj*>(p)))
+                            break;
+                        else
+                            p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
+                    }
+                    else {
+                        p = (void *)((char *) p + 1);
+                    }
+                }
+//                void* nxt = reinterpret_cast<Obj*>(p)->next;
+//                p = nxt ? nxt : arena->cur;
+                return p;
+            }
+
+            void* last_alloc;
         };
 
     }

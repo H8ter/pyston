@@ -157,7 +157,8 @@ namespace gc {
             void* p = tospace_queue.front();
             tospace_queue.pop();
 
-            RELEASE_ASSERT(*((void**)((char*)p - 32)) == (void*)0xCAFEBABE, "%p", p); // !!!
+            RELEASE_ASSERT((*((unsigned int*)((char*)p - 28))) == (unsigned int)0xCAFEBABE, "%p", p); // !!!
+            RELEASE_ASSERT(LinearHeap::Obj::alive(LinearHeap::Obj::fromUserData(p)), "object should be alive\n");
             RELEASE_ASSERT(gh->block(p).id == gh->nxt_space, "%p\n", p);
 
             copyChildren(LinearHeap::Obj::fromUserData(p), visitor, stack);
@@ -242,8 +243,13 @@ namespace gc {
 
         for(auto b : gh->blocks) {
             if (b.id == gh->nxt_space) {
+            #if OBJSET
                 for (auto obj : b.h->obj_set)
                     updateReferences((LinearHeap::Obj *) obj);
+            #else
+                for(void* obj = (void*)b.h->arena->arena_start; obj < b.h->arena->cur; obj = b.h->next_object(obj))
+                    updateReferences((LinearHeap::Obj *) obj);
+            #endif
             }
         }
 
@@ -263,7 +269,8 @@ namespace gc {
         void** start = (void**)data;
         void** end   = (void**)((char*)data + size);
 
-        RELEASE_ASSERT(*((void**)((char*)data - 32)) == (void*)0xCAFEBABE, "%p", data);
+        RELEASE_ASSERT((*((unsigned int*)((char*)data - 28))) == (unsigned int)0xCAFEBABE, "%p", data);
+        RELEASE_ASSERT(LinearHeap::Obj::alive(obj), "object should be alive\n");
 
         while(start <= end) {
             void* ptr = *start;

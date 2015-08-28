@@ -144,19 +144,19 @@ namespace gc{
         }
 
         void SemiSpaceGC::scanCopy(LinearHeap* tospace, GCVisitor &visitor, TraceStack &stack) {
-            auto scan = tospace->obj_set.begin();
-
-            while (scan != tospace->obj_set.end()) {
-                GCAllocation* al = reinterpret_cast<LinearHeap::Obj*>(*scan)->data;
-                void* data = al->user_data;
-
-                visitByGCKind(data, visitor);
-
-                // now trace stack contain children of current object
-                copyChildren(visitor, stack, data);
-
-                ++scan;
-            }
+//            auto scan = tospace->obj_set.begin();
+//
+//            while (scan != tospace->obj_set.end()) {
+//                GCAllocation* al = reinterpret_cast<LinearHeap::Obj*>(*scan)->data;
+//                void* data = al->user_data;
+//
+//                visitByGCKind(data, visitor);
+//
+//                // now trace stack contain children of current object
+//                copyChildren(visitor, stack, data);
+//
+//                ++scan;
+//            }
         }
 
         void SemiSpaceGC::copyChildren(GCVisitor &visitor, TraceStack &stack, void *parent) {
