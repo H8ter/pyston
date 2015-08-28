@@ -122,6 +122,10 @@ namespace pyston {
     }
 
     void *gc::GCBase::gc_alloc(size_t bytes, gc::GCKind kind_id) {
+        static StatCounter sc_us("us_gc_alloc");
+        static StatCounter sc_us_cnt("us_gc_alloc_count");
+        Timer _t("gcAlloc", /*min_usec=*/0); // 10000
+
 #if EXPENSIVE_STAT_TIMERS
     // This stat timer is quite expensive, not just because this function is extremely hot,
     // but also because it tends to increase the size of this function enough that we can't
@@ -202,6 +206,10 @@ namespace pyston {
     gc_alloc_bytes_typed[(int)kind_id].log(bytes);
 #endif
 
+        long us = _t.end();
+        sc_us.log(us);
+        sc_us_cnt.log(1);
+
         return r;
     }
 
@@ -246,6 +254,8 @@ namespace pyston {
     }
 
     void gc::GCBase::gc_free(void *ptr) {
+        static StatCounter sc_us("us_gc_free");
+        Timer _t("gcFree", /*min_usec=*/0); // 10000
         assert(ptr);
 #ifndef NVALGRIND
     if (ENABLE_REDZONES) {
@@ -258,6 +268,8 @@ namespace pyston {
 #else
         global_heap->free(GCAllocation::fromUserData(ptr));
 #endif
+        long us = _t.end();
+        sc_us.log(us);
     }
 
     void gc::GCBase::prepareWeakrefCallbacks(Box *box) {

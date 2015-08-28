@@ -106,13 +106,15 @@ namespace pyston{
 #endif
             GC_TRACE_LOG("GC end\n");
 
-//            DefaultHeap* gh = (DefaultHeap*)global_heap;
-//            FILE* f = fopen("diff_ms_def.txt", "a");
-//            for(std::pair<int64_t ,int64_t >pr : gh->diff_set)
-//                fprintf(f, "%" PRId64 " %" PRId64 " | ", pr.first, pr.second);
-//            if (gh->diff_set.size()) fprintf(f, "\n");
-//            gh->diff_set.clear();
-//            fclose(f);
+#if TRACE_GC_MARKING
+            LinearHeap* gh = (LinearHeap*)global_heap;
+            FILE* f = fopen("diff_ms_linear.txt", "a");
+            for(std::pair<int64_t ,int64_t >pr : gh->diff_set)
+                fprintf(f, "%" PRId64 " %" PRId64 " | ", pr.first, pr.second);
+            if (gh->diff_set.size()) fprintf(f, "\n");
+            gh->diff_set.clear();
+            fclose(f);
+#endif
         }
 
         void MarkSweepGC::markPhase() {

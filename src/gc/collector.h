@@ -25,16 +25,19 @@
 namespace pyston {
 namespace gc {
 
-//class MarkSweepGC;
-//typedef MarkSweepGC GCAlgorithm;
+#if 0
+class MarkSweepGC;
+typedef MarkSweepGC GCAlgorithm;
+#else
 class BartlettGC;
 typedef BartlettGC GCAlgorithm;
+#endif
 
 inline int64_t DIFF(void* a, void* b) {
     return ((char*)(a) - (char*)(b));
 }
 
-#define TRACE_GC_MARKING 0
+#define TRACE_GC_MARKING 1
 #if TRACE_GC_MARKING
 extern FILE* trace_fp;
 #define GC_TRACE_LOG(...) fprintf(pyston::gc::trace_fp, __VA_ARGS__)

@@ -14,6 +14,7 @@
 #include <map>
 
 #include "splay_tree.h"
+#include "x_fast_trie.h"
 
 namespace pyston {
     namespace gc {
@@ -52,8 +53,10 @@ namespace pyston {
 
             std::set<void*> obj_set;
 //            splay_tree<void*> obj_set;
+//            x_fast_trie obj_set;
 #if _TEST_
             std::set<void*> test_set;
+//            splay_tree<void*> test_set;
             bool size_test() {
                 if (obj_set.size() != (int)test_set.size()) {
                     fprintf(stderr, "%d %d\n", obj_set.size(), (int)test_set.size());
@@ -105,8 +108,9 @@ namespace pyston {
 
             void clearMark();
 
+//#if 1
 //            std::map<int64_t,int64_t> diff_set;
-
+//#endif
         private:
 
             Obj* _alloc(size_t size);

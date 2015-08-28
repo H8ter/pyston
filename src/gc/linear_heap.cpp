@@ -6,6 +6,7 @@
 
 #include "collector.h"
 
+
 namespace pyston {
     namespace gc {
         LinearHeap::LinearHeap(uintptr_t arena_start, uintptr_t arena_size,
@@ -14,6 +15,8 @@ namespace pyston {
                 : arena(new Arena(arena_start, arena_size, initial_map_size, increment)),
                   alloc_register(alloc_register)
         {
+//            uint p = (uint)ceil(log(arena_size) / log(2.0));
+//            obj_set = x_fast_trie(p);
         }
 
         LinearHeap::~LinearHeap() {
@@ -114,25 +117,34 @@ namespace pyston {
                 if (it == obj_set.begin() && *it > ptr) {
                     alc = NULL;
                 }
-                else if (obj_set.size() && (it == obj_set.end() || *it > ptr)) {
-                    --it;
+                else {
+                    if (obj_set.size() && (it == obj_set.end() || *it > ptr)) --it;
 
 #if _TEST_
-            auto x = test_set.lower_bound(ptr);
-            if (test_set.size() && (x == test_set.end() || *x > ptr)) {
-                --x;
-            }
-            RELEASE_ASSERT(*x == *it, "%p | %p %p| %d\n", ptr, *x, *it, obj_set.count(*x));
+                    auto x = test_set.lower_bound(ptr);
+                    if (test_set.size() && (x == test_set.end() || *x > ptr)) {
+                        --x;
+                    }
+
+                    RELEASE_ASSERT(*x == (void*)*it, "%p | %p %p| %p %p| %d\n", ptr, *x, (void*)*it, (void*)*obj_set.begin(), (void*)*test_set.begin(),obj_set.count((uint)*x));
 #endif
 
-                    Obj* tmp = reinterpret_cast<Obj*>(*it);
-                    if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr)
+                    Obj* tmp = reinterpret_cast<Obj*>((void*)*it);                      // !!!
+                    if ((void**)((char*)tmp + tmp->size + size_of_header) < ptr) // !!!
                         alc = NULL;
                     else {
                         alc = tmp->data;
 
-//                        int64_t diff = DIFF(ptr, tmp->data->user_data);//(int)((void**)ptr - (void**)tmp->data->user_data);
-//                        diff_set[diff]++;
+                        int64_t diff = DIFF(ptr, tmp->data->user_data);
+
+                        if (diff < -8 || diff > 0) {
+                            alc = NULL;
+                        }
+                        else {
+//#if TRACE_GC_MARKING
+//                            diff_set[diff]++;
+//#endif
+                        }
                     }
                 }
 
@@ -152,7 +164,7 @@ namespace pyston {
             #endif
 //            std::vector<void*> e;
             for(auto p = obj_set.begin(); p != obj_set.end();) {
-                GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;
+                GCAllocation* al = reinterpret_cast<Obj*>(*p)->data;            // !!!
                 clearOrderingState(al);
 
                 if(isMarked(al)) {
@@ -162,7 +174,7 @@ namespace pyston {
                 else {
                     if (_doFree(al, &weakly_referenced)) {
 #if _TEST_
-                        test_set.erase(*p);
+                        test_set.erase((void*)*p);
 #endif
                         p = obj_set.erase(p);
 //                        e.push_back(*p);
@@ -207,7 +219,7 @@ namespace pyston {
 #endif
 
             for(auto scan = obj_set.begin(); scan != obj_set.end(); ++scan) {
-                GCAllocation* al = reinterpret_cast<Obj*>(*scan)->data;
+                GCAllocation* al = reinterpret_cast<Obj*>(*scan)->data;         // !!!
                 if (isMarked(al))
                     ::pyston::gc::clearMark(al);
             }
@@ -217,13 +229,12 @@ namespace pyston {
 #if _TEST_
             RELEASE_ASSERT(size_test(), "");
 #endif
-
             void *p = Obj::fromAllocation(al);
 
-            auto it = obj_set.lower_bound(p); // obj_set
+            auto it = obj_set.lower_bound(p);               // !!!
             if (it == obj_set.end()) return;  // obj_set
 
-            void* val = *it;
+            void* val = (void*)*it;
 #if _TEST_
             test_set.erase(val);
 #endif
