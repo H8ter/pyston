@@ -18,6 +18,7 @@ namespace pyston {
 //            uint p = (uint)ceil(log(arena_size) / log(2.0));
 //            obj_set = x_fast_trie(p);
             last_alloc = 0;
+            first_alive_object = 0;
         }
 
         LinearHeap::~LinearHeap() {
@@ -37,11 +38,21 @@ namespace pyston {
             obj->size = bytes;
             obj->magic = 0xCAFEBABE;
             obj->forward = NULL;
+            obj->flags = 0;
             Obj::set_alive_flag(obj);
 
+            if (last_alloc) {
+                RELEASE_ASSERT(reinterpret_cast<Obj*>(last_alloc)->magic == (size_t)0xCAFEBABE, "%p\n", last_alloc);
+            }
+
             obj->prev = last_alloc;
+            if (obj->prev) {
+                reinterpret_cast<Obj*>(obj->prev)->next = obj;
+            }
             obj->next = 0;
             last_alloc = obj;
+
+            if (!first_alive_object) first_alive_object = obj;
 
             return obj->data;
         }
@@ -64,11 +75,10 @@ namespace pyston {
         GCAllocation *LinearHeap::realloc(GCAllocation *al, size_t bytes) {
             if (!arena->contains(al)) return al;
 
-            Obj* o = Obj::fromAllocation(al);
-            size_t size = o->size;
+            size_t size = Obj::fromAllocation(al)->size;
 
             GCAllocation* rtn = alloc(bytes);
-            memcpy(rtn, al, std::min(bytes, size));
+            memcpy(rtn, al, std::min(bytes, size) + sizeof(GCAllocation));
 
             _erase_from_obj_set(al);
 
@@ -86,15 +96,12 @@ namespace pyston {
         }
 
         void LinearHeap::destructContents(GCAllocation *alloc) {
-            Obj::clear_alive_flag(Obj::fromAllocation(alloc));
-
-            _doFree(alloc, NULL);
+            if (_doFree(alloc, NULL))
+                _erase_from_obj_set(alloc);
         }
 
         void LinearHeap::free(GCAllocation *alloc) {
             destructContents(alloc);
-
-            _erase_from_obj_set(alloc);
         }
 
         GCAllocation *LinearHeap::getAllocationFromInteriorPointer(void *ptr) {
@@ -207,7 +214,7 @@ namespace pyston {
                 }
             }
 #else
-            for(void* p = first_alive(); p < arena->cur;) {
+            for(void* p = first_alive(); p && p < arena->cur;) {
                 GCAllocation* al = reinterpret_cast<Obj*>(p)->data;
                 clearOrderingState(al);
 
@@ -220,9 +227,8 @@ namespace pyston {
                     if (_doFree(al, &weakly_referenced)) {
 //                        Obj::clear_alive_flag(reinterpret_cast<Obj *>(p));
                         _erase_from_obj_set(reinterpret_cast<Obj *>(p)->data);
-                        p = nxt;
                     }
-                    else  p = next_object(p);
+                    p = nxt;
                 }
             }
 #endif
@@ -249,6 +255,8 @@ namespace pyston {
             obj_set.clear();
 #endif
             arena->cur = (void*)arena->arena_start;
+            last_alloc = 0;
+            first_alive_object = 0;
         }
 
         void LinearHeap::clearMark() {
@@ -262,7 +270,7 @@ namespace pyston {
                     ::pyston::gc::clearMark(al);
             }
 #else
-            for(void* p = (void*)arena->arena_start; p < arena->cur; next_object(p)) {
+            for(void* p = first_alive(); p && p < arena->cur; p = next_object(p)) {
                 GCAllocation* al = reinterpret_cast<Obj*>(p)->data;
                 if (isMarked(al))
                     ::pyston::gc::clearMark(al);
@@ -289,17 +297,34 @@ namespace pyston {
             obj_set.erase(val);
 #else
             Obj* obj = Obj::fromAllocation(al);
+            RELEASE_ASSERT(Obj::alive(obj), "");
+            RELEASE_ASSERT(obj->magic == (size_t)0xCAFEBABE, "%p %p %p %p\n", (void*)arena->arena_start, first_alive_object, last_alloc, al);
 
             if (obj->prev) {
+                RELEASE_ASSERT(Obj::alive((Obj*)obj->prev), "prev object %p should be alive\n", obj->prev);
                 reinterpret_cast<Obj*>(obj->prev)->next = obj->next;
             }
             if (obj->next) {
+                RELEASE_ASSERT(Obj::alive((Obj*)obj->next), "next object %p should be alive\n", obj->next);
                 reinterpret_cast<Obj*>(obj->next)->prev = obj->prev;
             }
+
+            if (last_alloc == obj) {
+                last_alloc = obj->prev;
+                while (last_alloc && !Obj::alive((Obj*)last_alloc))
+                    last_alloc = reinterpret_cast<Obj*>(last_alloc)->prev;
+            }
+
+            if (first_alive_object == obj) {
+                first_alive_object = obj->next;
+                while (first_alive_object && !Obj::alive((Obj*)first_alive_object))
+                    first_alive_object = reinterpret_cast<Obj*>(first_alive_object)->next;
+            }
+
+
             obj->prev = obj->next = 0;
 
             Obj::clear_alive_flag(obj);
-
 #endif
         }
     } // namespace gc

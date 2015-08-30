@@ -211,16 +211,19 @@ namespace gc {
 
         tospace_queue.push(obj->forward);
 
+//        if (LinearHeap::Obj::fromUserData(obj->forward) == (void*)0x1293f99000) {
+//            LinearHeap::showObject(stderr, obj);
+//            LinearHeap::showObject(stderr, LinearHeap::Obj::fromUserData(obj->forward));
+//            assert(false);
+//        }
     }
 
     void* BartlettGC::move(LinearHeap::Obj *obj) {
-        LinearHeap::Obj* addr = LinearHeap::Obj::fromAllocation(
-                gh->_alloc(obj->size, BartlettHeap::HEAP_SPACE::NXT_SPACE)
-        );
+        GCAllocation* addr = gh->_alloc(obj->size, BartlettHeap::HEAP_SPACE::NXT_SPACE);
 
-        memcpy(addr, obj, obj->size + sizeof(LinearHeap::Obj) + sizeof(GCAllocation));
+        memcpy(addr, obj->data, obj->size + sizeof(GCAllocation));
 
-        void* forward = addr->data->user_data;
+        void* forward = addr->user_data;
 #if TRACE_GC_MARKING
 //        fprintf(stderr, "move from %p to %p\n", (void*)obj->data->user_data, forward);
 #endif
@@ -247,7 +250,8 @@ namespace gc {
                 for (auto obj : b.h->obj_set)
                     updateReferences((LinearHeap::Obj *) obj);
             #else
-                for(void* obj = (void*)b.h->arena->arena_start; obj < b.h->arena->cur; obj = b.h->next_object(obj))
+                // TODO:
+                for(void* obj = b.h->first_alive(); obj && obj < b.h->arena->cur; obj = b.h->next_object(obj))
                     updateReferences((LinearHeap::Obj *) obj);
             #endif
             }
@@ -290,23 +294,6 @@ namespace gc {
             }
             ++start;
         }
-    }
-
-    void BartlettGC::showObjectFromData(FILE *f, void *data) {
-        fprintf(f, "%p\n", data);
-
-        GCAllocation* al = GCAllocation::fromUserData(data);
-        LinearHeap::Obj* obj = LinearHeap::Obj::fromAllocation(al);
-
-        uint64_t bytes = obj->size + sizeof(LinearHeap::Obj)+ sizeof(GCAllocation);
-        void** start = (void**)obj;
-        void** end = (void**)((char*)obj + bytes);
-
-        while(start < end) {
-            fprintf(f, "%p ", *start);
-            ++start;
-        }
-        fprintf(f, "\n");
     }
 }
 }

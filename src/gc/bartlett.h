@@ -53,7 +53,6 @@ namespace gc {
         int root_blocks;
         int move_cnt;
 
-        void showObjectFromData(FILE* f, void* data);
     };
 
 }

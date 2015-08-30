@@ -55,6 +55,7 @@ namespace pyston {
                 }
 
                 static bool alive(Obj* obj) {
+                    RELEASE_ASSERT(obj->magic == (size_t)0xCAFEBABE, "%p\n", obj);
                     return bool(obj->flags & ALIVE_BIT);
                 }
 
@@ -68,8 +69,9 @@ namespace pyston {
             };
 
             static const size_t size_of_header = sizeof(GCAllocation) + sizeof(Obj);
-
+#if OBJSET
             std::set<void*> obj_set;
+#endif
 //            splay_tree<void*> obj_set;
 //            x_fast_trie obj_set;
 #if _TEST_
@@ -136,44 +138,35 @@ namespace pyston {
             void _erase_from_obj_set(GCAllocation *al);
 
             void* first_alive() {
-                void* p = (void*)arena->arena_start;
-
-                while (p < arena->cur) {                        // could cause segmantation fault
-                    if (reinterpret_cast<Obj*>(p)->magic == 0xCAFEBABE) {
-                        if (Obj::alive(reinterpret_cast<Obj*>(p)))
-                            break;
-                        else
-                            p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
-                    }
-                    else {
-                        p = (void *)((char *) p + 1);
-                    }
-                }
-
-                return p;
+                return first_alive_object;
             }
 
             // not fast enought
             void* next_object(void* p) {
-                p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
+                void* nxt = p;
+                do {
+                    nxt = reinterpret_cast<Obj*>(nxt)->next;
+                } while(nxt && !Obj::alive((Obj*)nxt));
 
-                while (p < arena->cur) {                        // could cause segmantation fault
-                    if (reinterpret_cast<Obj*>(p)->magic == 0xCAFEBABE) {
-                        if (Obj::alive(reinterpret_cast<Obj*>(p)))
-                            break;
-                        else
-                            p = (void*)((char*)p + reinterpret_cast<Obj*>(p)->size /* + size_of_header */);
-                    }
-                    else {
-                        p = (void *)((char *) p + 1);
-                    }
-                }
-//                void* nxt = reinterpret_cast<Obj*>(p)->next;
-//                p = nxt ? nxt : arena->cur;
-                return p;
+                return nxt;
             }
 
             void* last_alloc;
+            void* first_alive_object;
+
+            static void showObject(FILE *f, Obj* obj) {
+                fprintf(f, "%p\n", obj);
+
+                uint64_t bytes = obj->size + sizeof(Obj)+ sizeof(GCAllocation);
+                void** start = (void**)obj;
+                void** end = (void**)((char*)obj + bytes);
+
+                while(start < end) {
+                    fprintf(f, "%p ", *start);
+                    ++start;
+                }
+                fprintf(f, "\n");
+            }
         };
 
     }
