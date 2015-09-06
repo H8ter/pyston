@@ -90,7 +90,7 @@ namespace pyston {
                                  GCAllocation* from, GCAllocation* to,
                                  size_t bytes)
         {
-            memcpy(to, from, bytes);
+            memcpy(to, from, bytes + sizeof(GCAllocation));
 
             lhs->_erase_from_obj_set(from);
         }
@@ -147,7 +147,8 @@ namespace pyston {
 
                         diff = DIFF(ptr, tmp->data->user_data);
 
-                        if (diff < -8 || diff > 0) {
+                        if (!(diff == -8 || diff == 0))//if (diff < -8 || diff > 0)
+                        {
                             alc = NULL;
                         }
                         else {
@@ -166,7 +167,7 @@ namespace pyston {
                 alc = NULL;
             else {
                 Obj* tmp = 0;
-                for(int diff = 0; diff <= 8; ++diff) {
+                for(int diff = 0; diff <= 8; /*++diff*/ diff += 8) {
                     void *p = (char *) ptr - 28 + diff;
 
                     if (arena->contains(p) &&
@@ -304,9 +305,16 @@ namespace pyston {
                 RELEASE_ASSERT(Obj::alive((Obj*)obj->prev), "prev object %p should be alive\n", obj->prev);
                 reinterpret_cast<Obj*>(obj->prev)->next = obj->next;
             }
+            else {
+                RELEASE_ASSERT(obj == first_alive_object, "wtf %p %p\n", obj, first_alive_object);
+            }
+
             if (obj->next) {
                 RELEASE_ASSERT(Obj::alive((Obj*)obj->next), "next object %p should be alive\n", obj->next);
                 reinterpret_cast<Obj*>(obj->next)->prev = obj->prev;
+            }
+            else {
+                RELEASE_ASSERT(obj == last_alloc, "wtf %p %p\n", obj, last_alloc);
             }
 
             if (last_alloc == obj) {

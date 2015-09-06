@@ -152,7 +152,7 @@ namespace pyston {
             _bytesAllocatedTripped();
         }
 
-        GCAllocation* alloc = global_heap->alloc(alloc_bytes);
+        GCAllocation* alloc = global_heap->alloc(alloc_bytes /*bytes*/);
 
 
 #ifndef NVALGRIND

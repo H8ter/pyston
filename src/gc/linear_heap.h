@@ -32,6 +32,7 @@ namespace pyston {
 
             #define ALIVE_BIT 0x1
             struct Obj {
+//                void* guard;
                 void* prev;
                 void* next;
                 size_t flags : 32;
@@ -43,6 +44,7 @@ namespace pyston {
                 Obj() {
                     magic = 0xCAFEBABE;
                     forward = NULL;
+                    prev = next = 0;
                 }
 
                 static Obj* fromAllocation(GCAllocation* alloc) {

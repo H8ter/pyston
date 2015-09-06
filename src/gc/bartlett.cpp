@@ -250,7 +250,6 @@ namespace gc {
                 for (auto obj : b.h->obj_set)
                     updateReferences((LinearHeap::Obj *) obj);
             #else
-                // TODO:
                 for(void* obj = b.h->first_alive(); obj && obj < b.h->arena->cur; obj = b.h->next_object(obj))
                     updateReferences((LinearHeap::Obj *) obj);
             #endif

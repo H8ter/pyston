@@ -203,6 +203,8 @@ public:
         if ((intptr_t)cur % 8 != 0)
             cur = (uint8_t*)cur + 8 - ((intptr_t)cur % 8);
 
+        memset(rtn, 0, size);
+
         return rtn;
     }
 

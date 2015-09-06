@@ -102,6 +102,8 @@ namespace pyston {
             }
 
             GCAllocation* __attribute__((__malloc__)) alloc(size_t bytes) {
+//                bytes += sizeof(GCAllocation);
+
                 registerGCManagedBytes(bytes);
                 if (bytes <= 16)
                     return _alloc(16, 0);
@@ -463,7 +465,7 @@ namespace pyston {
             }
 
 
-            std::map<int64_t, int64_t> diff_set;
+//            std::map<int64_t, int64_t> diff_set;
             // not thread safe:
             GCAllocation* getAllocationFromInteriorPointer(void* ptr) {
                 static StatCounter sc_us("us_gc_get_allocation_from_interior_pointer");
@@ -481,13 +483,10 @@ namespace pyston {
                 long us = _t.end();
                 sc_us.log(us);
 
-                if (alc != NULL) {
-                    int64_t diff = (int64_t)((char*)ptr - (char*)alc->user_data);
-                    diff_set[diff]++;
-
-                    if (diff == 203)
-                        do {} while(false);
-                }
+//                if (alc != NULL) {
+//                    int64_t diff = (int64_t)((char*)ptr - (char*)alc->user_data);
+//                    diff_set[diff]++;
+//                }
 
                 return alc;
             }

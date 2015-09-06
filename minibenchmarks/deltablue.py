@@ -625,7 +625,11 @@ def main(n):
         delta_blue()
         t2 = time.time()
         times.append(t2 - t1)
-
+    
+    t = 0
+    for delta in times:
+        t = t + delta
+    print(t)
     return times
 
 

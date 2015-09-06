@@ -25,7 +25,7 @@
 namespace pyston {
 namespace gc {
 
-#if 1
+#if 0
 class MarkSweepGC;
 typedef MarkSweepGC GCAlgorithm;
 #else
